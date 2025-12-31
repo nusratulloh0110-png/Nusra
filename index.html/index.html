@@ -1,0 +1,2561 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MED48 | IT MED (Multi-Clinic)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+    body { font-family: 'Inter', sans-serif; background:#f3f4f6; color:#111827; }
+    .sidebar-active { background:#2563eb; color:#fff !important; box-shadow:0 4px 12px rgba(37,99,235,.2); }
+    .glass-card { background:#fff; border-radius:1.5rem; border:1px solid #e5e7eb; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+    .animate-fade { animation: fadeIn .25s ease-in-out; }
+    @keyframes fadeIn { from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:translateY(0)} }
+
+    /* Watermark */
+    #wm_nus { position: fixed; left: 14px; bottom: 10px; z-index: 5; font-weight: 900; letter-spacing: .15em; opacity: .18; color:#0f172a; pointer-events:none; user-select:none; }
+
+    /* Fullscreen exam keeps WHITE like rest */
+    .fs-on #sidebar { display:none !important; }
+    .fs-on #top-header { display:none !important; }
+    .fs-on #view-port { padding:0 !important; }
+    .fs-on body { overflow:hidden; }
+  </style>
+</head>
+
+<body class="h-screen overflow-hidden flex flex-col md:flex-row">
+
+  <!-- watermark -->
+  <div id="wm_nus">NUSRACOM</div>
+
+  <!-- LOGIN -->
+  <div id="login-screen" class="fixed inset-0 bg-slate-900 z-[100] flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl text-center animate-fade">
+      <div class="flex justify-center mb-6">
+        <div class="px-8 py-3 bg-slate-900 rounded-xl shadow-lg">
+          <span class="text-white font-black tracking-tighter text-3xl italic">MED48</span>
+        </div>
+      </div>
+      <h1 class="text-3xl font-black text-slate-800 tracking-tight mb-2">IT MED</h1>
+      <p class="text-xs text-slate-400 font-bold mb-8 uppercase tracking-widest">Multi-Clinic System</p>
+
+      <div class="space-y-4 text-left">
+        <div>
+          <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Логин</label>
+          <input id="log-user" type="text" placeholder="логин"
+                 class="w-full bg-slate-100 border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 outline-none mt-1">
+        </div>
+        <div>
+          <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Пароль</label>
+          <input id="log-pass" type="password" placeholder="пароль"
+                 class="w-full bg-slate-100 border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 outline-none mt-1">
+        </div>
+        <button onclick="handleAuth()"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-blue-100 mt-4 active:scale-95">
+          ВОЙТИ В СИСТЕМУ
+        </button>
+
+        <!-- BUGFIX: do not show real credentials -->
+        <div class="pt-3 text-[11px] text-slate-400 font-bold">
+          Super Admin: <span class="text-slate-800">логин / пароль</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app-container" class="hidden flex w-full h-screen overflow-hidden">
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="w-72 bg-white border-r border-slate-200 flex flex-col shadow-sm z-20">
+      <div class="p-8 pb-4">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="text-2xl font-black text-slate-900 tracking-tighter italic">IT MED</span>
+        </div>
+
+        <!-- Clinic selector (superadmin only) -->
+        <div id="admin-clinic-box" class="hidden p-4 bg-slate-900 rounded-2xl border border-slate-800 shadow-inner">
+          <p class="text-[10px] font-black text-blue-400 uppercase leading-snug tracking-wider mb-2">Активная клиника (ADMIN)</p>
+          <select id="admin-clinic-select" onchange="adminSelectClinic(this.value)"
+                  class="w-full bg-slate-800 text-white text-xs font-black p-3 rounded-xl border border-slate-700 outline-none"></select>
+          <p class="text-[10px] font-black text-slate-300 mt-2 uppercase tracking-widest">Данные изолированы</p>
+        </div>
+
+        <div id="clinic-name-box" class="p-4 bg-slate-900 rounded-2xl border border-slate-800 shadow-inner">
+          <p id="ui-inst-name" class="text-[10px] font-black text-blue-400 uppercase leading-snug tracking-wider"></p>
+        </div>
+      </div>
+
+      <nav class="flex-1 px-4 space-y-1 overflow-y-auto mt-2" id="sidebar-nav"></nav>
+
+      <div class="p-6 border-t border-slate-100 bg-slate-50/50">
+        <div class="flex items-center gap-3">
+          <img id="ui-avatar" src="" class="w-10 h-10 rounded-xl bg-white border shadow-sm">
+          <div class="flex-1 min-w-0">
+            <p id="ui-username" class="text-xs font-bold text-slate-700 truncate"></p>
+            <p id="ui-userrole" class="text-[10px] font-black text-blue-600 uppercase tracking-tighter"></p>
+          </div>
+          <button onclick="execLogout()" class="text-slate-400 hover:text-red-500 transition-colors" title="Выход">
+            <i class="fas fa-sign-out-alt"></i>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CONTENT -->
+    <main id="main-area" class="flex-1 flex flex-col min-w-0">
+      <header id="top-header" class="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8">
+        <div class="flex items-center gap-4">
+          <h3 id="view-title" class="text-lg font-black text-slate-800 tracking-tight uppercase">Главная</h3>
+        </div>
+
+        <!-- Top-right: MED48 + switcher + warning -->
+        <div class="flex items-center gap-3">
+          <div class="hidden md:flex items-center gap-3">
+            <div class="text-sm font-black italic text-slate-900">MED48</div>
+            <div class="h-8 w-px bg-slate-200"></div>
+          </div>
+
+          <div id="multi-warning" class="hidden items-center gap-2 bg-amber-50 border border-amber-100 text-amber-700 px-3 py-2 rounded-xl text-[10px] font-black uppercase">
+            <i class="fas fa-triangle-exclamation"></i>
+            <span>В этом аккаунте несколько ролей/клиник</span>
+          </div>
+
+          <select id="role-switcher" class="hidden bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-black"
+                  onchange="switchAssignment(this.value)"></select>
+
+          <button onclick="dataSync()"
+                  class="bg-blue-50 text-blue-600 px-5 py-2.5 rounded-xl font-bold text-xs uppercase flex items-center gap-2 hover:bg-blue-100 transition-all">
+            <i id="sync-icon" class="fas fa-sync-alt"></i> <span>Синхр.</span>
+          </button>
+
+          <div class="h-8 w-px bg-slate-200"></div>
+          <div id="live-timer" class="text-sm font-mono font-bold text-slate-400">00:00:00</div>
+        </div>
+      </header>
+
+      <div id="view-port" class="flex-1 overflow-y-auto p-8 animate-fade"></div>
+    </main>
+  </div>
+
+  <!-- MODAL -->
+  <div id="modal-wrapper" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] hidden items-center justify-center p-4">
+    <div id="modal-body" class="bg-white w-full max-w-2xl rounded-[2.5rem] p-10 shadow-2xl animate-fade max-h-[90vh] overflow-y-auto"></div>
+  </div>
+
+<script>
+/* ============================================================================
+   0) CONSTANTS + HELPERS
+============================================================================ */
+const SUPERADMIN = {
+  id: "sa-1",
+  name: "Nusrat (DB ADMIN)",
+  role: "SUPERADMIN",
+  user: "Nusrat",
+  pass: "7181",
+  avatar: "https://ui-avatars.com/api/?name=Nusrat&background=0f172a&color=fff"
+};
+
+function lsGet(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch { return fallback; }
+}
+function lsSet(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+function nowStr() { return new Date().toLocaleString('ru-RU'); }
+function money(n){ n = Number(n)||0; return n.toLocaleString('ru-RU'); }
+function idGen(prefix="id"){ return prefix + "-" + Date.now() + "-" + Math.floor(Math.random()*9999); }
+function clinicKey(clinicId, suffix) { return `itmed_${clinicId}_${suffix}`; }
+
+function getClinics() { return lsGet("itmed_clinics", []); }
+function saveClinics(arr) { lsSet("itmed_clinics", arr); }
+
+function getAccounts() { return lsGet("itmed_accounts", []); }
+function saveAccounts(arr) { lsSet("itmed_accounts", arr); }
+
+function getPatients(clinicId) { return lsGet(clinicKey(clinicId,"patients"), []); }
+function savePatients(clinicId, arr) { lsSet(clinicKey(clinicId,"patients"), arr); }
+
+function getLabTemplates(clinicId) { return lsGet(clinicKey(clinicId,"lab_templates"), []); }
+function saveLabTemplates(clinicId, arr) { lsSet(clinicKey(clinicId,"lab_templates"), arr); }
+
+function getLabOrders(clinicId) { return lsGet(clinicKey(clinicId,"lab_orders"), []); }
+function saveLabOrders(clinicId, arr) { lsSet(clinicKey(clinicId,"lab_orders"), arr); }
+
+function getServices(clinicId) { return lsGet(clinicKey(clinicId,"services"), []); }
+function saveServices(clinicId, arr) { lsSet(clinicKey(clinicId,"services"), arr); }
+
+function getServiceOrders(clinicId) { return lsGet(clinicKey(clinicId,"service_orders"), []); }
+function saveServiceOrders(clinicId, arr) { lsSet(clinicKey(clinicId,"service_orders"), arr); }
+
+function getDoctorExamTemplates(clinicId, doctorAccountId) {
+  return lsGet(clinicKey(clinicId, `exam_templates_${doctorAccountId}`), []);
+}
+function saveDoctorExamTemplates(clinicId, doctorAccountId, arr) {
+  lsSet(clinicKey(clinicId, `exam_templates_${doctorAccountId}`), arr);
+}
+
+function closeModal() { document.getElementById("modal-wrapper").classList.add("hidden"); }
+function setFullscreen(on){ document.documentElement.classList.toggle("fs-on", !!on); }
+
+/* ============================================================================
+   1) MIGRATION (from old staff model) + FIRST RUN DEFAULTS
+============================================================================ */
+(function init(){
+  // If old model exists and new accounts not set => migrate
+  const oldStaff = lsGet("itmed_staff_all", null);
+  const accounts = getAccounts();
+  if (!accounts.length && Array.isArray(oldStaff) && oldStaff.length) {
+    const acc = [];
+    for (const s of oldStaff) {
+      const ex = acc.find(a => a.user===s.user && a.pass===s.pass);
+      const assignment = { clinicId: s.clinicId, roles: [s.role], doctorPrice: (s.role==="DOCTOR") ? 0 : undefined };
+      if (ex) {
+        const asg = ex.assignments.find(x=>x.clinicId===s.clinicId);
+        if (asg) { if (!asg.roles.includes(s.role)) asg.roles.push(s.role); }
+        else ex.assignments.push(assignment);
+      } else {
+        acc.push({
+          id: idGen("acc"),
+          name: s.name || "Сотрудник",
+          user: s.user, pass: s.pass,
+          avatar: s.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name||"User")}&background=random`,
+          assignments: [assignment],
+          createdAt: nowStr()
+        });
+      }
+    }
+    saveAccounts(acc);
+    // keep oldStaff as backup, but no longer used
+  }
+
+  // Clinics defaults
+  let clinics = getClinics();
+  if (!clinics.length) {
+    const cid = "c1";
+    clinics = [{ id: cid, name: "Городская поликлиника №4 IT MED" }];
+    saveClinics(clinics);
+
+    // data
+    savePatients(cid, []);
+    saveLabOrders(cid, []);
+    saveServiceOrders(cid, []);
+
+    // Lab templates with PRICE
+    saveLabTemplates(cid, [
+      { id: 101, name: "ОАК (общий анализ крови)", price: 45000, fields: [
+        { key:"hb", label:"Hb", unit:"г/л", ref:"120–160" },
+        { key:"wbc", label:"WBC", unit:"10^9/л", ref:"4.0–9.0" }
+      ]}
+    ]);
+
+    // Services
+    saveServices(cid, [
+      { id: "svc-1", name: "Массаж", price: 80000 },
+      { id: "svc-2", name: "Физиотерапия", price: 60000 }
+    ]);
+
+    // Default accounts (single-role). You can later add roles to same login.
+    const acc = getAccounts();
+    if (!acc.length) {
+      saveAccounts([
+        {
+          id: "acc-dir",
+          name: "Директор Умаров",
+          user: "director",
+          pass: "director",
+          avatar: "https://ui-avatars.com/api/?name=Director&background=1e293b&color=fff",
+          assignments: [{ clinicId: cid, roles:["DIRECTOR"] }],
+          createdAt: nowStr()
+        },
+        {
+          id: "acc-reg",
+          name: "Регистратор Азизова",
+          user: "admin",
+          pass: "123",
+          avatar: "https://ui-avatars.com/api/?name=Registrar&background=2563eb&color=fff",
+          assignments: [{ clinicId: cid, roles:["REGISTRAR"] }],
+          createdAt: nowStr()
+        },
+        {
+          id: "acc-doc",
+          name: "Др. Каримов А.",
+          user: "doctor",
+          pass: "123",
+          avatar: "https://ui-avatars.com/api/?name=Doctor&background=059669&color=fff",
+          assignments: [{ clinicId: cid, roles:["DOCTOR"], doctorPrice: 50000 }],
+          createdAt: nowStr()
+        },
+        {
+          id: "acc-lab",
+          name: "Лаборант Саидова",
+          user: "lab",
+          pass: "123",
+          avatar: "https://ui-avatars.com/api/?name=Lab&background=ef4444&color=fff",
+          assignments: [{ clinicId: cid, roles:["LAB"] }],
+          createdAt: nowStr()
+        }
+      ]);
+    }
+  }
+
+  if (!localStorage.getItem("itmed_session")) localStorage.setItem("itmed_session", "null");
+})();
+
+/* ============================================================================
+   2) SESSION STATE (multi-role)
+============================================================================ */
+let session = lsGet("itmed_session", null); // { kind:'superadmin' } OR { kind:'account', accountId, assignmentKey }
+let sessionUser = null;                      // current identity object for UI
+let activeClinicId = null;
+let activeClinicName = "";
+let activeRole = null;                       // current role in this assignment
+let activeAccount = null;                    // full account record
+let activeAssignment = null;                 // current assignment {clinicId, roles, ...}
+let activeAssignmentKey = null;              // string clinicId|role
+let currentViewId = "dashboard";
+let activeExamPatientId = null;
+
+let currentPatients = [];
+let labTemplates = [];
+let labOrders = [];
+let services = [];
+let serviceOrders = [];
+let examTemplates = []; // doctor-specific loaded
+
+/* ============================================================================
+   3) AUTH + SWITCHING
+============================================================================ */
+function handleAuth() {
+  const u = (document.getElementById("log-user").value || "").trim();
+  const p = (document.getElementById("log-pass").value || "").trim();
+
+  // superadmin
+  if (u === SUPERADMIN.user && p === SUPERADMIN.pass) {
+    session = { kind:"superadmin" };
+    lsSet("itmed_session", session);
+    startApp();
+    return;
+  }
+
+  // accounts
+  const accounts = getAccounts();
+  const acc = accounts.find(a => a.user === u && a.pass === p);
+  if (!acc) { alert("Ошибка: Неверный логин или пароль"); return; }
+
+  // pick first assignment & first role
+  const asg = acc.assignments[0];
+  const role = asg.roles[0];
+  const key = `${asg.clinicId}|${role}`;
+
+  session = { kind:"account", accountId: acc.id, assignmentKey: key };
+  lsSet("itmed_session", session);
+  startApp();
+}
+
+function execLogout() {
+  localStorage.removeItem("itmed_session");
+  location.reload();
+}
+
+function buildSwitchOptions(account) {
+  const opts = [];
+  for (const a of account.assignments) {
+    for (const r of a.roles) {
+      opts.push({ key: `${a.clinicId}|${r}`, clinicId: a.clinicId, role: r });
+    }
+  }
+  return opts;
+}
+
+function switchAssignment(key) {
+  if (!session || session.kind!=="account") return;
+  session.assignmentKey = key;
+  lsSet("itmed_session", session);
+  dataSync(true);
+}
+
+/* ============================================================================
+   4) SYNC / CONTEXT
+============================================================================ */
+function setClinicContext(cid) {
+  activeClinicId = cid || null;
+  const c = getClinics().find(x=>x.id===activeClinicId);
+  activeClinicName = c ? c.name : "";
+  document.getElementById("ui-inst-name").innerText = activeClinicName || "";
+}
+
+function renderAdminClinicSelector() {
+  const box = document.getElementById("admin-clinic-box");
+  const normal = document.getElementById("clinic-name-box");
+  if (activeRole === "SUPERADMIN") {
+    box.classList.remove("hidden");
+    normal.classList.add("hidden");
+  } else {
+    box.classList.add("hidden");
+    normal.classList.remove("hidden");
+  }
+
+  const sel = document.getElementById("admin-clinic-select");
+  if (!sel) return;
+
+  const clinics = getClinics();
+  sel.innerHTML = clinics.map(c => `<option value="${c.id}" ${c.id===activeClinicId?'selected':''}>${c.name}</option>`).join("");
+}
+
+function adminSelectClinic(cid) {
+  localStorage.setItem("itmed_admin_active_clinic", cid || "");
+  dataSync(true);
+}
+
+function requireClinicSelected() {
+  if (!activeClinicId) { alert("Выберите/создайте клинику."); return false; }
+  return true;
+}
+
+function dataSync(keepView=false) {
+  const icon = document.getElementById("sync-icon");
+  icon.classList.add("fa-spin");
+
+  // Build sessionUser
+  if (session?.kind === "superadmin") {
+    sessionUser = { ...SUPERADMIN };
+    activeRole = "SUPERADMIN";
+
+    const clinics = getClinics();
+    const saved = localStorage.getItem("itmed_admin_active_clinic");
+    const pick = saved && clinics.some(c=>c.id===saved) ? saved : (clinics[0]?.id || null);
+    localStorage.setItem("itmed_admin_active_clinic", pick || "");
+    setClinicContext(pick);
+  } else if (session?.kind === "account") {
+    const acc = getAccounts().find(a => a.id === session.accountId);
+    if (!acc) { alert("Аккаунт удален. Войдите заново."); execLogout(); return; }
+    activeAccount = acc;
+
+    const opts = buildSwitchOptions(acc);
+    const sel = document.getElementById("role-switcher");
+    const warn = document.getElementById("multi-warning");
+
+    // warning + switcher show/hide
+    if (opts.length > 1) {
+      warn.classList.remove("hidden");
+      warn.classList.add("flex");
+      sel.classList.remove("hidden");
+    } else {
+      warn.classList.add("hidden");
+      sel.classList.add("hidden");
+    }
+
+    // render switcher
+    if (opts.length > 1) {
+      sel.innerHTML = opts.map(o=>{
+        const clinicName = (getClinics().find(c=>c.id===o.clinicId)?.name) || o.clinicId;
+        return `<option value="${o.key}" ${o.key===session.assignmentKey?'selected':''}>${clinicName} — ${o.role}</option>`;
+      }).join("");
+    }
+
+    // parse assignmentKey
+    const parts = String(session.assignmentKey||"").split("|");
+    const cid = parts[0];
+    const role = parts[1];
+
+    activeRole = role;
+
+    const asg = acc.assignments.find(a => a.clinicId === cid);
+    if (!asg || !asg.roles.includes(role)) {
+      // fallback to first
+      const a0 = acc.assignments[0];
+      const r0 = a0.roles[0];
+      session.assignmentKey = `${a0.clinicId}|${r0}`;
+      lsSet("itmed_session", session);
+      return dataSync(keepView);
+    }
+    activeAssignment = asg;
+    activeAssignmentKey = session.assignmentKey;
+    setClinicContext(cid);
+
+    sessionUser = {
+      id: acc.id, name: acc.name, avatar: acc.avatar, role: role, user: acc.user
+    };
+  } else {
+    // no session
+    icon.classList.remove("fa-spin");
+    return;
+  }
+
+  // load clinic data
+  if (activeClinicId) {
+    currentPatients = getPatients(activeClinicId);
+    labTemplates = getLabTemplates(activeClinicId);
+    labOrders = getLabOrders(activeClinicId);
+    services = getServices(activeClinicId);
+    serviceOrders = getServiceOrders(activeClinicId);
+
+    // doctor templates are per doctor account
+    if (activeRole === "DOCTOR" && activeAccount) {
+      examTemplates = getDoctorExamTemplates(activeClinicId, activeAccount.id);
+    } else {
+      examTemplates = [];
+    }
+  } else {
+    currentPatients = [];
+    labTemplates = [];
+    labOrders = [];
+    services = [];
+    serviceOrders = [];
+    examTemplates = [];
+  }
+
+  // update profile UI
+  document.getElementById("ui-username").innerText = sessionUser?.name || "";
+  document.getElementById("ui-userrole").innerText = activeRole || "";
+  document.getElementById("ui-avatar").src = sessionUser?.avatar || "";
+
+  renderAdminClinicSelector();
+  bootstrapNav();
+
+  setTimeout(()=> {
+    icon.classList.remove("fa-spin");
+    if (!keepView) navigateTo("dashboard");
+    else {
+      // re-render current view
+      if (currentViewId === "dr_exam") renderDoctorExamScreen();
+      else navigateTo(currentViewId || "dashboard");
+    }
+  }, 150);
+}
+
+function startApp() {
+  document.getElementById("login-screen").classList.add("hidden");
+  document.getElementById("app-container").classList.remove("hidden");
+  dataSync(false);
+}
+
+/* ============================================================================
+   5) NAV
+============================================================================ */
+function bootstrapNav() {
+  const nav = document.getElementById("sidebar-nav");
+  const style = "nav-btn w-full flex items-center gap-3 p-4 rounded-2xl text-slate-500 font-bold text-sm mb-1 transition-all hover:bg-slate-50";
+  let html = `<button onclick="navigateTo('dashboard')" id="nav-dashboard" class="${style}"><i class="fas fa-home"></i> Обзор</button>`;
+
+  if (activeRole === "SUPERADMIN") {
+    html += `
+      <button onclick="navigateTo('admin_clinics')" id="nav-admin_clinics" class="${style}"><i class="fas fa-hospital"></i> Клиники</button>
+      <button onclick="navigateTo('staff_list')" id="nav-staff_list" class="${style}"><i class="fas fa-users-cog"></i> Персонал</button>
+      <button onclick="navigateTo('settings')" id="nav-settings" class="${style}"><i class="fas fa-sliders-h"></i> Услуги</button>
+      <button onclick="navigateTo('lab_templates')" id="nav-lab_templates" class="${style}"><i class="fas fa-flask"></i> Анализы</button>
+      <button onclick="navigateTo('exam_templates')" id="nav-exam_templates" class="${style}"><i class="fas fa-clipboard-list"></i> Шаблоны осмотров</button>
+      <button onclick="navigateTo('registration')" id="nav-registration" class="${style}"><i class="fas fa-user-plus"></i> Регистрация</button>
+      <button onclick="navigateTo('queue')" id="nav-queue" class="${style}"><i class="fas fa-list-ol"></i> Очередь</button>
+      <button onclick="navigateTo('reg_services')" id="nav-reg_services" class="${style}"><i class="fas fa-cash-register"></i> Оплата/Услуги</button>
+      <button onclick="navigateTo('lab_queue')" id="nav-lab_queue" class="${style}"><i class="fas fa-vials"></i> Лаб. очередь</button>
+    `;
+  }
+
+  if (activeRole === "DIRECTOR") {
+    html += `
+      <button onclick="navigateTo('staff_list')" id="nav-staff_list" class="${style}"><i class="fas fa-users-cog"></i> Сотрудники</button>
+      <button onclick="navigateTo('settings')" id="nav-settings" class="${style}"><i class="fas fa-hospital"></i> Услуги</button>
+      <button onclick="navigateTo('lab_templates')" id="nav-lab_templates" class="${style}"><i class="fas fa-flask"></i> Анализы</button>
+      <button onclick="navigateTo('exam_templates')" id="nav-exam_templates" class="${style}"><i class="fas fa-clipboard-list"></i> Шаблоны осмотров</button>
+    `;
+  }
+
+  if (activeRole === "REGISTRAR") {
+    html += `
+      <button onclick="navigateTo('registration')" id="nav-registration" class="${style}"><i class="fas fa-user-plus"></i> Оформление</button>
+      <button onclick="navigateTo('queue')" id="nav-queue" class="${style}"><i class="fas fa-list-ol"></i> Очередь</button>
+      <button onclick="navigateTo('reg_services')" id="nav-reg_services" class="${style}"><i class="fas fa-cash-register"></i> Оплата/Услуги</button>
+    `;
+  }
+
+  if (activeRole === "DOCTOR") {
+    html += `
+      <button onclick="navigateTo('dr_queue')" id="nav-dr_queue" class="${style}"><i class="fas fa-stethoscope"></i> Прием</button>
+      <button onclick="navigateTo('dr_archive')" id="nav-dr_archive" class="${style}"><i class="fas fa-folder-open"></i> Мой архив</button>
+      <button onclick="navigateTo('dr_labs')" id="nav-dr_labs" class="${style}"><i class="fas fa-file-medical"></i> Результаты</button>
+      <button onclick="navigateTo('exam_templates')" id="nav-exam_templates" class="${style}"><i class="fas fa-clipboard-list"></i> Мои шаблоны</button>
+    `;
+  }
+
+  if (activeRole === "LAB") {
+    html += `
+      <button onclick="navigateTo('lab_queue')" id="nav-lab_queue" class="${style}"><i class="fas fa-vials"></i> Очередь лаборатории</button>
+      <button onclick="navigateTo('lab_templates')" id="nav-lab_templates" class="${style}"><i class="fas fa-flask"></i> Шаблоны анализов</button>
+    `;
+  }
+
+  nav.innerHTML = html;
+}
+
+function navigateTo(id) {
+  currentViewId = id;
+
+  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("sidebar-active"));
+  const active = document.getElementById("nav-" + id);
+  if (active) active.classList.add("sidebar-active");
+
+  if (id !== "dr_exam") setFullscreen(false);
+
+  const vp = document.getElementById("view-port");
+  const title = document.getElementById("view-title");
+  vp.innerHTML = "";
+
+  if (id === "dashboard") { title.innerText = "Аналитика"; renderStats(vp); }
+  else if (id === "admin_clinics") { title.innerText = "Клиники"; renderAdminClinics(vp); }
+  else if (id === "staff_list") { title.innerText = "Персонал"; renderStaffEditor(vp); }
+  else if (id === "settings") { title.innerText = "Услуги"; renderClinicServices(vp); }
+  else if (id === "lab_templates") { title.innerText = "Анализы"; renderLabTemplates(vp); }
+  else if (id === "exam_templates") { title.innerText = "Шаблоны осмотров"; renderExamTemplates(vp); }
+  else if (id === "registration") { title.innerText = "Оформление пациента"; renderRegForm(vp); }
+  else if (id === "queue") { title.innerText = "Очередь"; renderQueueTable(vp); }
+  else if (id === "reg_services") { title.innerText = "Оплата / Услуги"; renderServiceOrders(vp); }
+  else if (id === "dr_queue") { title.innerText = "Список на прием"; renderDoctorWorkplace(vp); }
+  else if (id === "dr_archive") { title.innerText = "История приемов"; renderDoctorHistory(vp); }
+  else if (id === "dr_labs") { title.innerText = "Результаты анализов"; renderDoctorLabInbox(vp); }
+  else if (id === "lab_queue") { title.innerText = "Очередь лаборатории"; renderLabQueue(vp); }
+  else if (id === "dr_exam") { title.innerText = "Осмотр"; renderDoctorExamScreen(); }
+}
+
+/* ============================================================================
+   6) STAFF/DOCTORS HELPERS
+============================================================================ */
+function clinicAccounts(clinicId) {
+  return getAccounts().filter(a => a.assignments.some(x=>x.clinicId===clinicId));
+}
+function clinicDoctors(clinicId) {
+  return getAccounts().filter(a => a.assignments.some(x => x.clinicId===clinicId && x.roles.includes("DOCTOR")));
+}
+function clinicLabs(clinicId) {
+  return getAccounts().filter(a => a.assignments.some(x => x.clinicId===clinicId && x.roles.includes("LAB")));
+}
+function masked(s){ return s ? "••••••" : ""; } // BUGFIX: do not show real login/pass
+
+function accountAssignment(acc, clinicId) {
+  return acc.assignments.find(a => a.clinicId === clinicId) || null;
+}
+function ensureAssignment(acc, clinicId) {
+  let a = acc.assignments.find(x=>x.clinicId===clinicId);
+  if (!a) { a = { clinicId, roles: [] }; acc.assignments.push(a); }
+  return a;
+}
+function roleLabel(r){
+  const m = {SUPERADMIN:"ADMIN",DIRECTOR:"DIRECTOR",REGISTRAR:"REGISTRAR",DOCTOR:"DOCTOR",LAB:"LAB"};
+  return m[r] || r;
+}
+function doctorPriceFor(acc, clinicId){
+  const a = accountAssignment(acc, clinicId);
+  if (!a || !a.roles.includes("DOCTOR")) return 0;
+  return Number(a.doctorPrice||0);
+}
+
+/* ============================================================================
+   7) DASHBOARD
+============================================================================ */
+function renderStats(el) {
+  if (!requireClinicSelected()) return;
+
+  const doctorsCount = clinicDoctors(activeClinicId).length;
+  const labCount = clinicLabs(activeClinicId).length;
+  const totalPatients = currentPatients.length;
+  const completedCount = currentPatients.filter(p => p.status === "COMPLETED").length;
+
+  const labPending = labOrders.filter(o => o.status === "ORDERED").length;
+  const unpaid = serviceOrders.filter(o => o.status === "UNPAID").length;
+
+  el.innerHTML = `
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div class="glass-card p-6 border-l-4 border-blue-600">
+        <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Клиника</p>
+        <h4 class="text-lg font-black">${activeClinicName || "-"}</h4>
+        <p class="text-xs font-bold text-slate-400 mt-2">Врачи: <span class="text-slate-800">${doctorsCount}</span> · Лаб: <span class="text-slate-800">${labCount}</span></p>
+      </div>
+      <div class="glass-card p-6 border-l-4 border-indigo-600">
+        <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Пациенты (всего)</p>
+        <h4 class="text-3xl font-black">${totalPatients}</h4>
+      </div>
+      <div class="glass-card p-6 border-l-4 border-emerald-600">
+        <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Завершено приемов</p>
+        <h4 class="text-3xl font-black">${completedCount}</h4>
+      </div>
+      <div class="glass-card p-6 border-l-4 border-amber-600">
+        <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Неоплачено</p>
+        <h4 class="text-3xl font-black">${unpaid}</h4>
+      </div>
+    </div>
+
+    <div class="glass-card p-12 text-center flex flex-col items-center">
+      <div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-3xl mb-4 border border-blue-100 shadow-inner">
+        <i class="fas fa-laptop-medical"></i>
+      </div>
+      <h2 class="text-2xl font-black text-slate-800">MED48 • IT MED</h2>
+      <p class="text-slate-400 mt-2 max-w-md italic">Единая информационная система клиник (данные изолированы по учреждениям).</p>
+      <div class="mt-6 text-xs font-black text-slate-400 uppercase tracking-widest">
+        Анализы ожидают: <span class="text-slate-800">${labPending}</span>
+      </div>
+    </div>
+  `;
+}
+
+/* ============================================================================
+   8) SUPERADMIN: CLINICS (+ SEARCH)
+============================================================================ */
+function renderAdminClinics(el) {
+  if (activeRole !== "SUPERADMIN") { el.innerHTML = `<div class="glass-card p-10 text-center font-black">Доступ запрещен</div>`; return; }
+
+  const clinics = getClinics();
+
+  el.innerHTML = `
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+      <div>
+        <p class="text-sm text-slate-400 font-bold">ADMIN управляет клиниками. Данные клиник не смешиваются.</p>
+      </div>
+      <div class="flex gap-2">
+        <input id="adminClinicSearch" oninput="renderAdminClinics(document.getElementById('view-port'))"
+               class="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold" placeholder="Поиск по клиникам...">
+        <button onclick="adminCreateClinic()" class="bg-slate-900 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest">
+          + Новая клиника
+        </button>
+      </div>
+    </div>
+    <div id="adminClinicList"></div>
+  `;
+
+  const q = (document.getElementById("adminClinicSearch")?.value || "").toLowerCase().trim();
+  const filtered = q ? clinics.filter(c => (c.name||"").toLowerCase().includes(q) || (c.id||"").toLowerCase().includes(q)) : clinics;
+
+  const list = filtered.map(c => `
+    <div class="glass-card p-6 mb-4 border-l-4 ${c.id===activeClinicId ? 'border-blue-600' : 'border-slate-200'}">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <div class="text-lg font-black text-slate-800">${c.name}</div>
+          <div class="text-[10px] font-black text-slate-400 uppercase mt-1">ID: ${c.id}</div>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="adminSetActiveClinic('${c.id}')"
+                  class="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl font-black text-[10px] uppercase">Открыть</button>
+          <button onclick="adminEditClinicName('${c.id}')"
+                  class="bg-slate-900 text-white px-4 py-2 rounded-xl font-black text-[10px] uppercase">Имя</button>
+        </div>
+      </div>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <button onclick="adminCreateDirector('${c.id}')"
+                class="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl font-black text-[10px] uppercase">
+          + Директор
+        </button>
+        <button onclick="adminResetClinicData('${c.id}')"
+                class="bg-red-50 text-red-600 px-4 py-2 rounded-xl font-black text-[10px] uppercase">
+          СБРОС ДАННЫХ
+        </button>
+      </div>
+      <div class="mt-3 text-xs text-slate-400 font-bold">
+        Персонал: <span class="text-slate-800">${clinicAccounts(c.id).length}</span>
+        · Пациенты: <span class="text-slate-800">${getPatients(c.id).length}</span>
+        · Услуги: <span class="text-slate-800">${getServices(c.id).length}</span>
+        · Анализы: <span class="text-slate-800">${getLabTemplates(c.id).length}</span>
+      </div>
+    </div>
+  `).join("") || `<div class="glass-card p-10 text-center font-black opacity-60">Нет клиник</div>`;
+
+  document.getElementById("adminClinicList").innerHTML = list;
+}
+
+function adminSetActiveClinic(cid) {
+  localStorage.setItem("itmed_admin_active_clinic", cid);
+  dataSync(true);
+  navigateTo("dashboard");
+}
+
+function adminCreateClinic() {
+  const mo = document.getElementById("modal-wrapper");
+  mo.classList.remove("hidden");
+  mo.classList.add("flex");
+  document.getElementById("modal-body").innerHTML = `
+    <h2 class="text-2xl font-black mb-6">Новая клиника</h2>
+    <form onsubmit="adminSaveClinic(event)" class="space-y-4">
+      <input name="name" placeholder="Название клиники" required class="w-full bg-slate-50 p-4 rounded-xl border-none">
+      <button class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-xs">Создать</button>
+      <button type="button" onclick="closeModal()" class="w-full py-3 font-black text-slate-400 uppercase text-xs">Отмена</button>
+    </form>
+  `;
+}
+function adminSaveClinic(e) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const name = (f.get("name")||"").trim();
+  const cid = idGen("c");
+
+  const clinics = getClinics();
+  clinics.push({ id: cid, name });
+  saveClinics(clinics);
+
+  // init per clinic
+  savePatients(cid, []);
+  saveLabTemplates(cid, []);
+  saveLabOrders(cid, []);
+  saveServices(cid, []);
+  saveServiceOrders(cid, []);
+
+  closeModal();
+  adminSetActiveClinic(cid);
+}
+function adminEditClinicName(cid) {
+  const clinics = getClinics();
+  const c = clinics.find(x=>x.id===cid);
+  if (!c) return;
+
+  const mo = document.getElementById("modal-wrapper");
+  mo.classList.remove("hidden"); mo.classList.add("flex");
+  document.getElementById("modal-body").innerHTML = `
+    <h2 class="text-2xl font-black mb-6">Переименование клиники</h2>
+    <form onsubmit="adminSaveClinicName(event,'${cid}')" class="space-y-4">
+      <input name="name" value="${c.name.replace(/"/g,'&quot;')}" required class="w-full bg-slate-50 p-4 rounded-xl border-none">
+      <button class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-xs">Сохранить</button>
+      <button type="button" onclick="closeModal()" class="w-full py-3 font-black text-slate-400 uppercase text-xs">Отмена</button>
+    </form>
+  `;
+}
+function adminSaveClinicName(e, cid) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const val = (f.get("name")||"").trim();
+  const clinics = getClinics();
+  const c = clinics.find(x=>x.id===cid);
+  if (!c) return;
+  c.name = val; saveClinics(clinics);
+  closeModal();
+  dataSync(true);
+  navigateTo("admin_clinics");
+}
+function adminCreateDirector(cid) {
+  const mo = document.getElementById("modal-wrapper");
+  mo.classList.remove("hidden"); mo.classList.add("flex");
+  document.getElementById("modal-body").innerHTML = `
+    <h2 class="text-2xl font-black mb-6">Создать директора</h2>
+    <p class="text-xs font-bold text-slate-400 mb-4">Клиника: <span class="text-slate-800">${(getClinics().find(c=>c.id===cid)?.name)||cid}</span></p>
+    <form onsubmit="adminSaveDirector(event,'${cid}')" class="space-y-4">
+      <input name="name" placeholder="ФИО директора" required class="w-full bg-slate-50 p-4 rounded-xl border-none">
+      <div class="grid grid-cols-2 gap-4">
+        <input name="user" placeholder="Логин (уникальный)" required class="w-full bg-slate-50 p-4 rounded-xl border-none">
+        <input name="pass" placeholder="Пароль" required class="w-full bg-slate-50 p-4 rounded-xl border-none">
+      </div>
+      <button class="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black uppercase text-xs">Создать</button>
+      <button type="button" onclick="closeModal()" class="w-full py-3 font-black text-slate-400 uppercase text-xs">Отмена</button>
+    </form>
+  `;
+}
+function adminSaveDirector(e, cid) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const name = (f.get("name")||"").trim();
+  const user = (f.get("user")||"").trim();
+  const pass = (f.get("pass")||"").trim();
+
+  if (user === SUPERADMIN.user) { alert("Нельзя использовать этот логин."); return; }
+  const accounts = getAccounts();
+  let acc = accounts.find(a=>a.user===user);
+
+  // If login exists: ADD ROLE to same login (multi-role feature)
+  if (acc) {
+    const asg = ensureAssignment(acc, cid);
+    if (!asg.roles.includes("DIRECTOR")) asg.roles.push("DIRECTOR");
+    acc.name = acc.name || name;
+    saveAccounts(accounts);
+    closeModal();
+    alert("Роль ДИРЕКТОР добавлена к существующему логину. Вверху справа появится переключатель ролей/клиник.");
+    dataSync(true);
+    navigateTo("staff_list");
+    return;
+  }
+
+  // Create new account
+  accounts.push({
+    id: idGen("acc"),
+    name, user, pass,
+    avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=1e293b&color=fff`,
+    assignments: [{ clinicId: cid, roles:["DIRECTOR"] }],
+    createdAt: nowStr()
+  });
+  saveAccounts(accounts);
+  closeModal();
+  dataSync(true);
+  navigateTo("staff_list");
+}
+function adminResetClinicData(cid) {
+  if (!confirm("СБРОСИТЬ ДАННЫЕ клиники? (пациенты, очереди, оплаты, анализы).")) return;
+  savePatients(cid, []);
+  saveLabOrders(cid, []);
+  saveServiceOrders(cid, []);
+  if (activeClinicId === cid) dataSync(true);
+  alert("Данные клиники сброшены.");
+}
+
+/* ============================================================================
+   9) STAFF MANAGEMENT (+ SEARCH, multi-role, doctor price per doctor)
+============================================================================ */
+function renderStaffEditor(el) {
+  if (!requireClinicSelected()) return;
+
+  const allow = (activeRole === "SUPERADMIN" || activeRole === "DIRECTOR");
+  if (!allow) { el.innerHTML = `<div class="glass-card p-10 text-center font-black">Доступ запрещен</div>`; return; }
+
+  el.innerHTML = `
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+      <div>
+        <p class="text-sm text-slate-400 font-bold">Персонал клиники: <span class="text-slate-800">${activeClinicName||"-"}</span></p>
+        <p class="text-xs text-slate-400 font-bold mt-1">Можно добавлять роли к существующему логину (мульти-роль).</p>
+      </div>
+      <div class="flex gap-2">
+        <input id="staffSearch" oninput="renderStaffEditor(document.getElementById('view-port'))"
+               class="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold" placeholder="Поиск по ФИО...">
+        <button onclick="openAddStaffModal()" class="bg-slate-900 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-600 shadow-lg shadow-blue-100">
+          + Добавить / дать роль
+        </button>
+      </div>
+    </div>
+    <div class="glass-card overflow-hidden shadow-sm">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-slate-50 font-black text-[10px] text-slate-400 uppercase">
+          <tr>
+            <th class="p-4">Сотрудник</th>
+            <th class="p-4">Роли</th>
+            <th class="p-4">Цена приема (если врач)</th>
+            <th class="p-4">Логин</th>
+            <th class="p-4">Пароль</th>
+            <th class="p-4 text-right">Действие</th>
+          </tr>
+        </thead>
+        <tbody id="staffRows"></tbody>
+      </table>
+    </div>
+  `;
+
+  const q = (document.getElementById("staffSearch")?.value || "").toLowerCase().trim();
+  const list = clinicAccounts(activeClinicId)
+    .filter(a => !q || (a.name||"").toLowerCase().includes(q) || (a.user||"").toLowerCase().includes(q))
+    .sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+
+  const rows = list.map(a=>{
+    const asg = accountAssignment(a, activeClinicId);
+    const roles = (asg?.roles||[]).map(roleLabel).join(", ") || "-";
+    const price = (asg?.roles||[]).includes("DOCTOR") ? `${money(Number(asg.doctorPrice||0))} сум` : "-";
+    return `
+      <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+        <td class="p-4 font-bold text-slate-700">${a.name}</td>
+        <td class="p-4"><span class="bg-blue-50 text-blue-600 text-[10px] font-black px-2 py-1 rounded-full uppercase">${roles}</span></td>
+        <td class="p-4 text-xs font-black text-slate-700">${price}</td>
+
+        <!-- BUGFIX: do NOT show real login/pass -->
+        <td class="p-4 text-xs font-black text-slate-400">${masked(a.user)}</td>
+        <td class="p-4 text-xs font-black text-slate-400">${masked(a.pass)}</td>
+
+        <td class="p-4 text-right">
+          <button onclick="editAccountAccess('${a.id}')" class="text-blue-500 hover:bg-blue-100 p-2 rounded-xl transition-all" title="Редактировать"><i class="fas fa-pen"></i></button>
+          <button onclick="removeAccountFromClinic('${a.id}')" class="text-red-400 hover:bg-red-50 p-2 rounded-xl transition-all ml-2" title="Убрать из клиники"><i class="fas fa-trash"></i></button>
+        </td>
+      </tr>
+    `;
+  }).join("") || `<tr><td colspan="6" class="p-10 text-center opacity-40 font-bold italic">Нет персонала</td></tr>`;
+
+  document.getElementById("staffRows").innerHTML = rows;
+}
+
+function openAddStaffModal() {
+  if (!requireClinicSelected()) return;
+
+  const mo = document.getElementById("modal-wrapper");
+  mo.classList.remove("hidden"); mo.classList.add("flex");
+
+  // If login exists => add role to same account (multi-role feature)
+  document.getElementById("modal-body").innerHTML = `
+    <h2 class="text-2xl font-black mb-2 italic">Добавить сотрудника / дать роль</h2>
+    <p class="text-xs text-slate-400 font-bold mb-6">
+      Если ввести логин, который уже существует — роль добавится в этот же аккаунт (и появится переключатель вверху справа).
+    </p>
+
+    <form onsubmit="handleStaffSave(event)" class="space-y-4">
+      <input name="name" placeholder="ФИО (если логин новый)" class="w-full bg-slate-50 p-4 rounded-xl border-none outline-none focus:ring-2 focus:ring-blue-500">
+      <div class="grid grid-cols-2 gap-4">
+        <input name="user" placeholder="Логин" required class="w-full bg-slate-50 p-4 rounded-xl border-none outline-none">
+        <input name="pass" placeholder="Пароль" required class="w-full bg-slate-50 p-4 rounded-xl border-none outline-none">
+      </div>
+
+      <select name="role" class="w-full bg-slate-50 p-4 rounded-xl border-none font-bold text-slate-700">
+        <option value="DOCTOR">Врач</option>
+        <option value="REGISTRAR">Регистратор</option>
+        <option value="LAB">Лаборант</option>
+        <option value="DIRECTOR">Директор</option>
+      </select>
+
+      <div id="docPriceBox" class="hidden">
+        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Цена приема врача (сум)</label>
+        <input name="doctorPrice" type="number" min="0" value="0" class="w-full bg-slate-50 p-4 rounded-xl border-none">
+      </div>
+
+      <div class="flex gap-4 pt-4">
+        <button type="button" onclick="closeModal()" class="flex-1 p-4 font-bold text-slate-400 uppercase text-xs">Отмена</button>
+        <button class="flex-1 bg-blue-600 text-white p-4 rounded-2xl font-black shadow-lg shadow-blue-100 uppercase text-xs">СОХРАНИТЬ</button>
+      </div>
+    </form>
+  `;
+
+  const roleSel = document.querySelector(`#modal-body select[name="role"]`);
+  roleSel.addEventListener("change", ()=>{
+    document.getElementById("docPriceBox").classList.toggle("hidden", roleSel.value !== "DOCTOR");
+  });
+  // initial
+  document.getElementById("docPriceBox").classList.toggle("hidden", roleSel.value !== "DOCTOR");
+}
+
+function handleStaffSave(e) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const name = (f.get("name")||"").trim();
+  const user = (f.get("user")||"").trim();
+  const pass = (f.get("pass")||"").trim();
+  const role = f.get("role");
+  const doctorPrice = Number(f.get("doctorPrice")||0);
+
+  if (user === SUPERADMIN.user) { alert("Нельзя использовать этот логин."); return; }
+
+  const accounts = getAccounts();
+  let acc = accounts.find(a=>a.user===user);
+
+  if (acc) {
+    // verify pass matches
+    if (acc.pass !== pass) { alert("Этот логин уже существует, но пароль другой. Введите правильный пароль."); return; }
+
+    const asg = ensureAssignment(acc, activeClinicId);
+    if (!asg.roles.includes(role)) asg.roles.push(role);
+
+    if (role === "DOCTOR") asg.doctorPrice = doctorPrice;
+
+    // Optional rename if empty
+    if (name && (!acc.name || acc.name === "Сотрудник")) acc.name = name;
+
+    saveAccounts(accounts);
+    closeModal();
+    alert("Роль добавлена к существующему аккаунту. Переключение ролей/клиник — вверху справа.");
+    dataSync(true);
+    navigateTo("staff_list");
+    return;
+  }
+
+  // new account
+  const newAcc = {
+    id: idGen("acc"),
+    name: name || "Сотрудник",
+    user, pass,
+    avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name||user)}&background=random`,
+    assignments: [{ clinicId: activeClinicId, roles:[role], ...(role==="DOCTOR" ? { doctorPrice } : {}) }],
+    createdAt: nowStr()
+  };
+  accounts.push(newAcc);
+  saveAccounts(accounts);
+  closeModal();
+  dataSync(true);
+  navigateTo("staff_list");
+}
+
+function editAccountAccess(accountId) {
+  const accounts = getAccounts();
+  const acc = accounts.find(a=>a.id===accountId);
+  if (!acc) return alert("Не найдено.");
+
+  const asg = ensureAssignment(acc, activeClinicId);
+  const hasDoc = asg.roles.includes("DOCTOR");
+
+  const mo = document.getElementById("modal-wrapper");
+  mo.classList.remove("hidden"); mo.classList.add("flex");
+  document.getElementById("modal-body").innerHTML = `
+    <h3 class="text-2xl font-black mb-6">Редактирование</h3>
+    <form onsubmit="saveAccountEdit(event,'${accountId}')" class="space-y-4">
+      <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">ФИО</label>
+      <input name="name" value="${String(acc.name).replace(/"/g,'&quot;')}" required class="w-full bg-slate-50 p-4 rounded-xl border-none">
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Логин</label>
+          <input name="user" value="${String(acc.user).replace(/"/g,'&quot;')}" required class="w-full bg-slate-50 p-4 rounded-xl border-none">
+        </div>
+        <div>
+          <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Пароль</label>
+          <input name="pass" value="${String(acc.pass).replace(/"/g,'&quot;')}" required class="w-full bg-slate-50 p-4 rounded-xl border-none">
+        </div>
+      </div>
+
+      <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Роли (в ЭТОЙ клинике)</label>
+      <div class="grid grid-cols-2 gap-2 text-sm font-bold">
+        ${["DOCTOR","REGISTRAR","LAB","DIRECTOR"].map(r=>`
+          <label class="flex items-center gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <input type="checkbox" name="roles" value="${r}" ${asg.roles.includes(r)?"checked":""} />
+            <span>${roleLabel(r)}</span>
+          </label>
+        `).join("")}
+      </div>
+
+      <div>
+        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Цена приема врача (если есть роль DOCTOR)</label>
+        <input name="doctorPrice" type="number" min="0" value="${Number(asg.doctorPrice||0)}"
+               class="w-full bg-slate-50 p-4 rounded-xl border-none">
+      </div>
+
+      <button class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black mt-4 uppercase text-xs tracking-widest">Сохранить</button>
+      <button type="button" onclick="closeModal()" class="w-full py-3 font-black text-slate-400 uppercase text-xs">Отмена</button>
+    </form>
+  `;
+}
+
+function saveAccountEdit(e, accountId) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+
+  const accounts = getAccounts();
+  const acc = accounts.find(a=>a.id===accountId);
+  if (!acc) return;
+
+  const newUser = (f.get("user")||"").trim();
+  const newPass = (f.get("pass")||"").trim();
+
+  // ensure login unique
+  if (newUser !== acc.user && accounts.some(a=>a.user===newUser)) {
+    alert("Этот логин уже существует."); return;
+  }
+
+  acc.name = (f.get("name")||"").trim();
+  acc.user = newUser;
+  acc.pass = newPass;
+  acc.avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.name)}&background=random`;
+
+  const asg = ensureAssignment(acc, activeClinicId);
+  const roles = f.getAll("roles");
+  asg.roles = roles.length ? roles : [];
+  const dp = Number(f.get("doctorPrice")||0);
+  if (asg.roles.includes("DOCTOR")) asg.doctorPrice = dp;
+  else delete asg.doctorPrice;
+
+  saveAccounts(accounts);
+  closeModal();
+
+  // if editing current account and you removed current role, refresh session
+  dataSync(true);
+  navigateTo("staff_list");
+}
+
+function removeAccountFromClinic(accountId) {
+  if (!confirm("Убрать этого сотрудника из текущей клиники? (Аккаунт сохранится для других клиник/ролей)")) return;
+  const accounts = getAccounts();
+  const acc = accounts.find(a=>a.id===accountId);
+  if (!acc) return;
+  acc.assignments = acc.assignments.filter(a=>a.clinicId!==activeClinicId);
+  saveAccounts(accounts);
+  dataSync(true);
+  navigateTo("staff_list");
+}
+
+/* ============================================================================
+   10) SERVICES (director/admin + SEARCH)
+============================================================================ */
+function renderClinicServices(el) {
+  if (!requireClinicSelected()) return;
+  const allow = (activeRole === "SUPERADMIN" || activeRole === "DIRECTOR");
+  if (!allow) { el.innerHTML = `<div class="glass-card p-10 text-center font-black">Доступ запрещен</div>`; return; }
+
+  el.innerHTML = `
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+      <div>
+        <div class="text-lg font-black text-slate-800">Услуги</div>
+        <div class="text-xs font-bold text-slate-400">Директор/ADMIN добавляет услуги (массаж и т.д.).</div>
+      </div>
+      <div class="flex gap-2">
+        <input id="svcSearch" oninput="renderClinicServices(document.getElementById('view-port'))"
+               class="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold" placeholder="Поиск услуг...">
+        <button onclick="openAddServiceModal()" class="bg-slate-900 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest">
+          + Услуга
+        </button>
+      </div>
+    </div>
+
+    <div class="glass-card overflow-hidden">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-slate-50 font-black text-[10px] text-slate-400 uppercase">
+          <tr><th class="p-4">Услуга</th><th class="p-4 text-right">Цена</th><th class="p-4 text-right">Действие</th></tr>
+        </thead>
+        <tbody id="svcRows"></tbody>
+      </table>
+    </div>
+  `;
+
+  const q = (document.getElementById("svcSearch")?.value || "").toLowerCase().trim();
+  const list = (q ? services.filter(s => (s.name||"").toLowerCase().includes(q)) : services);
+
+  document.getElementById("svcRows").innerHTML = list.map(s => `
+    <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+      <td class="p-4 font-bold text-slate-700">${s.name}</td>
+      <td class="p-4 text-right font-black text-slate-800">${money(s.price)} сум</td>
+      <td class="p-4 text-right">
+        <button onclick="editService('${s.id}')" class="text-blue-500 hover:bg-blue-100 p-2 rounded-xl transition-all"><i class="fas fa-pen"></i></button>
+        <button onclick="deleteService('${s.id}')" class="text-red-400 hover:bg-red-50 p-2 rounded-xl transition-all ml-2"><i class="fas fa-trash"></i></button>
+      </td>
+    </tr>
+  `).join("") || `<tr><td colspan="3" class="p-10 text-center opacity-40 font-bold italic">Услуг пока нет</td></tr>`;
+}
+
+function openAddServiceModal() {
+  const mo = document.getElementById("modal-wrapper");
+  mo.classList.remove("hidden"); mo.classList.add("flex");
+  document.getElementById("modal-body").innerHTML = `
+    <h2 class="text-2xl font-black mb-6">Добавить услугу</h2>
+    <form onsubmit="saveService(event)" class="space-y-4">
+      <input name="name" placeholder="Название (например: Массаж)" required class="w-full bg-slate-50 p-4 rounded-xl border-none">
+      <input name="price" type="number" min="0" placeholder="Цена (сум)" required class="w-full bg-slate-50 p-4 rounded-xl border-none">
+      <button class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-xs">Сохранить</button>
+      <button type="button" onclick="closeModal()" class="w-full py-3 font-black text-slate-400 uppercase text-xs">Отмена</button>
+    </form>
+  `;
+}
+function saveService(e) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  services.push({ id: idGen("svc"), name: (f.get("name")||"").trim(), price: Number(f.get("price")||0) });
+  saveServices(activeClinicId, services);
+  closeModal();
+  dataSync(true);
+  navigateTo("settings");
+}
+function editService(sid) {
+  const s = services.find(x=>x.id===sid);
+  if (!s) return;
+
+  const mo = document.getElementById("modal-wrapper");
+  mo.classList.remove("hidden"); mo.classList.add("flex");
+  document.getElementById("modal-body").innerHTML = `
+    <h2 class="text-2xl font-black mb-6">Редактировать услугу</h2>
+    <form onsubmit="updateService(event,'${sid}')" class="space-y-4">
+      <input name="name" value="${String(s.name).replace(/"/g,'&quot;')}" required class="w-full bg-slate-50 p-4 rounded-xl border-none">
+      <input name="price" type="number" min="0" value="${Number(s.price||0)}" required class="w-full bg-slate-50 p-4 rounded-xl border-none">
+      <button class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-xs">Сохранить</button>
+      <button type="button" onclick="closeModal()" class="w-full py-3 font-black text-slate-400 uppercase text-xs">Отмена</button>
+    </form>
+  `;
+}
+function updateService(e, sid) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const s = services.find(x=>x.id===sid);
+  if (!s) return;
+  s.name = (f.get("name")||"").trim();
+  s.price = Number(f.get("price")||0);
+  saveServices(activeClinicId, services);
+  closeModal();
+  dataSync(true);
+  navigateTo("settings");
+}
+function deleteService(sid) {
+  if (!confirm("Удалить услугу?")) return;
+  services = services.filter(x=>x.id!==sid);
+  saveServices(activeClinicId, services);
+  dataSync(true);
+  navigateTo("settings");
+}
+
+/* ============================================================================
+   11) LAB TEMPLATES (+ PRICE + SEARCH)
+============================================================================ */
+function renderLabTemplates(el) {
+  if (!requireClinicSelected()) return;
+
+  const allow = ["LAB","SUPERADMIN","DIRECTOR"].includes(activeRole);
+  if (!allow) { el.innerHTML = `<div class="glass-card p-10 text-center font-black">Доступ запрещен</div>`; return; }
+
+  el.innerHTML = `
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+      <div>
+        <p class="text-sm text-slate-400 font-bold">Шаблоны анализов (с ценами). Названия отображаются у врача/регистратуры.</p>
+      </div>
+      <div class="flex gap-2">
+        <input id="labTplSearch" oninput="renderLabTemplates(document.getElementById('view-port'))"
+               class="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold" placeholder="Поиск анализов...">
+        <button onclick="openNewLabTemplate()" class="bg-slate-900 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest">+ Новый анализ</button>
+      </div>
+    </div>
+    <div id="labTplList"></div>
+  `;
+
+  const q = (document.getElementById("labTplSearch")?.value || "").toLowerCase().trim();
+  const list = q ? labTemplates.filter(t => (t.name||"").toLowerCase().includes(q)) : labTemplates;
+
+  const cards = list.map(t => `
+    <div class="glass-card p-6 mb-4">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <div class="text-lg font-black text-slate-800">${t.name}</div>
+          <div class="text-[10px] font-black text-slate-400 uppercase mt-1">${t.fields.length} полей • Цена: <span class="text-slate-800">${money(Number(t.price||0))} сум</span></div>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="openEditLabTemplate(${t.id})" class="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl font-black text-[10px] uppercase">Редактировать</button>
+          <button onclick="deleteLabTemplate(${t.id})" class="bg-red-50 text-red-600 px-4 py-2 rounded-xl font-black text-[10px] uppercase">Удалить</button>
+        </div>
+      </div>
+
+      <div class="mt-4 text-sm text-slate-600 space-y-2">
+        ${t.fields.map(f => `
+          <div class="flex justify-between bg-slate-50 border rounded-xl p-3">
+            <div><b>${f.label}</b> <span class="text-slate-400">${f.unit || ""}</span></div>
+            <div class="text-slate-400 text-xs font-mono">ref: ${f.ref || "-"}</div>
+          </div>
+        `).join("") || `<div class="italic opacity-50">Поля не заданы</div>`}
+      </div>
+    </div>
+  `).join("") || `<div class="p-16 text-center opacity-40 font-black italic">Шаблонов пока нет</div>`;
+
+  document.getElementById("labTplList").innerHTML = cards;
+}
+
+function openNewLabTemplate() {
+  const mo = document.getElementById("modal-wrapper");
+  mo.classList.remove("hidden"); mo.classList.add("flex");
+  document.getElementById("modal-body").innerHTML = `
+    <h2 class="text-2xl font-black mb-6">Новый анализ</h2>
+    <form onsubmit="saveNewLabTemplate(event)" class="space-y-4">
+      <input name="name" placeholder="Название анализа" required class="w-full bg-slate-50 p-4 rounded-xl border-none">
+      <input name="price" type="number" min="0" placeholder="Цена (сум)" required class="w-full bg-slate-50 p-4 rounded-xl border-none">
+      <p class="text-xs text-slate-400 font-bold">Поля добавите после сохранения (Редактировать).</p>
+      <button class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-xs">Сохранить</button>
+      <button type="button" onclick="closeModal()" class="w-full py-3 font-black text-slate-400 uppercase text-xs">Отмена</button>
+    </form>
+  `;
+}
+function saveNewLabTemplate(e) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  labTemplates.push({ id: Date.now(), name: (f.get("name")||"").trim(), price: Number(f.get("price")||0), fields: [] });
+  saveLabTemplates(activeClinicId, labTemplates);
+  closeModal(); dataSync(true); navigateTo("lab_templates");
+}
+
+function openEditLabTemplate(tid) {
+  const t = labTemplates.find(x=>x.id===tid);
+  if (!t) return;
+
+  const rows = t.fields.map((ff, idx) => `
+    <div class="grid grid-cols-12 gap-2">
+      <input class="col-span-4 bg-slate-50 p-3 rounded-xl border-none" placeholder="Показатель" value="${ff.label||""}"
+             oninput="labTplEditField(${tid}, ${idx}, 'label', this.value)">
+      <input class="col-span-3 bg-slate-50 p-3 rounded-xl border-none" placeholder="Ед." value="${ff.unit||""}"
+             oninput="labTplEditField(${tid}, ${idx}, 'unit', this.value)">
+      <input class="col-span-4 bg-slate-50 p-3 rounded-xl border-none" placeholder="Норма (ref)" value="${ff.ref||""}"
+             oninput="labTplEditField(${tid}, ${idx}, 'ref', this.value)">
+      <button type="button" class="col-span-1 bg-red-50 text-red-600 rounded-xl font-black" onclick="labTplRemoveField(${tid}, ${idx})">×</button>
+    </div>
+  `).join("");
+
+  const mo = document.getElementById("modal-wrapper");
+  mo.classList.remove("hidden"); mo.classList.add("flex");
+  document.getElementById("modal-body").innerHTML = `
+    <h2 class="text-2xl font-black mb-4">Анализ: ${t.name}</h2>
+
+    <div class="space-y-3">
+      <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Название</label>
+      <input class="w-full bg-slate-50 p-4 rounded-xl border-none" value="${String(t.name).replace(/"/g,'&quot;')}"
+             oninput="labTplRename(${tid}, this.value)">
+
+      <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Цена (сум)</label>
+      <input type="number" min="0" class="w-full bg-slate-50 p-4 rounded-xl border-none"
+             value="${Number(t.price||0)}" oninput="labTplSetPrice(${tid}, this.value)">
+
+      <div class="pt-4 border-t">
+        <div class="flex justify-between items-center mb-3">
+          <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Поля</div>
+          <button type="button" onclick="labTplAddField(${tid})" class="bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase">+ Поле</button>
+        </div>
+        <div class="space-y-2">${rows || '<div class="italic opacity-50">Пока нет полей</div>'}</div>
+      </div>
+
+      <button type="button" onclick="saveLabTemplatesAndClose()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-xs mt-4">Готово</button>
+    </div>
+  `;
+}
+function labTplRename(tid, v) { const t=labTemplates.find(x=>x.id===tid); if(t) t.name=v; }
+function labTplSetPrice(tid, v) { const t=labTemplates.find(x=>x.id===tid); if(t) t.price = Number(v||0); saveLabTemplates(activeClinicId, labTemplates); }
+function labTplAddField(tid) {
+  const t = labTemplates.find(x=>x.id===tid); if(!t) return;
+  t.fields.push({ key: "f"+Date.now(), label:"", unit:"", ref:"" });
+  saveLabTemplates(activeClinicId, labTemplates);
+  openEditLabTemplate(tid);
+}
+function labTplEditField(tid, idx, k, v) {
+  const t=labTemplates.find(x=>x.id===tid); if(!t) return;
+  t.fields[idx][k]=v;
+  saveLabTemplates(activeClinicId, labTemplates);
+}
+function labTplRemoveField(tid, idx) {
+  const t=labTemplates.find(x=>x.id===tid); if(!t) return;
+  t.fields.splice(idx,1);
+  saveLabTemplates(activeClinicId, labTemplates);
+  openEditLabTemplate(tid);
+}
+function saveLabTemplatesAndClose() { saveLabTemplates(activeClinicId, labTemplates); closeModal(); dataSync(true); }
+function deleteLabTemplate(tid) {
+  if (!confirm("Удалить анализ?")) return;
+  labTemplates = labTemplates.filter(x=>x.id!==tid);
+  saveLabTemplates(activeClinicId, labTemplates);
+  dataSync(true); navigateTo("lab_templates");
+}
+
+/* ============================================================================
+   12) REGISTRATION: patient -> doctor + lab + services
+   IMPORTANT: doctor price is individual (per doctor)
+============================================================================ */
+function renderRegForm(el) {
+  if (!requireClinicSelected()) return;
+
+  const docs = clinicDoctors(activeClinicId);
+
+  const labList = labTemplates.length
+    ? labTemplates.map(t => `
+      <label class="flex items-center gap-3 bg-white border rounded-xl p-3 cursor-pointer hover:bg-slate-50">
+        <input type="checkbox" name="lab_tests" value="${t.id}" class="w-4 h-4">
+        <div class="flex-1">
+          <div class="font-black text-slate-800 text-sm">${t.name}</div>
+          <div class="text-[10px] text-slate-400 font-bold uppercase">${t.fields.length} полей • ${money(Number(t.price||0))} сум</div>
+        </div>
+      </label>
+    `).join("")
+    : `<div class="text-xs font-bold italic opacity-50">Нет шаблонов анализов (LAB → “Анализы”).</div>`;
+
+  const svcList = services.length
+    ? services.map(s => `
+      <label class="flex items-center gap-3 bg-white border rounded-xl p-3 cursor-pointer hover:bg-slate-50">
+        <input type="checkbox" name="svc_pick" value="${s.id}" class="w-4 h-4">
+        <div class="flex-1">
+          <div class="font-black text-slate-800 text-sm">${s.name}</div>
+          <div class="text-[10px] text-slate-400 font-bold uppercase">${money(s.price)} сум</div>
+        </div>
+      </label>
+    `).join("")
+    : `<div class="text-xs font-bold italic opacity-50">Услуг нет (Директор → “Услуги”).</div>`;
+
+  el.innerHTML = `
+    <div class="glass-card p-10 max-w-3xl mx-auto shadow-sm">
+      <form onsubmit="savePatientReg(event)" class="space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">ФИО Пациента</label>
+            <input name="name" required placeholder="Введите полное ФИО"
+                   class="w-full bg-slate-50 p-4 rounded-xl border-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Телефон</label>
+            <input name="phone" placeholder="+998" required class="w-full bg-slate-50 p-4 rounded-xl border-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Дата рождения</label>
+            <input name="dob" type="date" required class="w-full bg-slate-50 p-4 rounded-xl border-none">
+          </div>
+          <div>
+            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Паспорт (серия и номер)</label>
+            <input name="passport" placeholder="AA 1234567" class="w-full bg-slate-50 p-4 rounded-xl border-none uppercase">
+          </div>
+        </div>
+
+        <div class="p-6 bg-slate-50 rounded-[2rem] border border-slate-200">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-[10px] font-black uppercase text-slate-500">Направить к врачу</span>
+            <span class="text-[10px] font-black uppercase text-slate-400">цена приема индивидуальная</span>
+          </div>
+          <select name="doctorAccId" class="w-full bg-white border rounded-xl p-4 font-black text-slate-700">
+            <option value="">(не назначать пока)</option>
+            ${docs.map(d=>{
+              const price = doctorPriceFor(d, activeClinicId);
+              return `<option value="${d.id}">${d.name} — ${money(price)} сум</option>`;
+            }).join("")}
+          </select>
+          <p class="text-xs text-slate-400 font-bold mt-2">Если выберете анализы — лучше сразу назначить врача (чтобы результат пришёл врачу).</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="p-6 bg-slate-50 rounded-[2rem] border border-slate-200">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-[10px] font-black uppercase text-slate-500">Анализы (платные)</span>
+              <span class="text-[10px] font-black uppercase text-slate-400">выберите</span>
+            </div>
+            <div class="space-y-2 max-h-56 overflow-y-auto pr-2">${labList}</div>
+          </div>
+
+          <div class="p-6 bg-slate-50 rounded-[2rem] border border-slate-200">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-[10px] font-black uppercase text-slate-500">Услуги</span>
+              <span class="text-[10px] font-black uppercase text-slate-400">выберите</span>
+            </div>
+            <div class="space-y-2 max-h-56 overflow-y-auto pr-2">${svcList}</div>
+          </div>
+        </div>
+
+        <button class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all mt-4 uppercase text-xs">
+          Зарегистрировать
+        </button>
+      </form>
+    </div>
+  `;
+}
+
+function savePatientReg(e) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+
+  const name = (f.get("name")||"").trim();
+  const dob = f.get("dob");
+  const phone = (f.get("phone")||"").trim();
+  const passport = (f.get("passport")||"").trim().toUpperCase();
+
+  const doctorAccId = (f.get("doctorAccId")||"").trim() || null;
+  const selectedLab = f.getAll("lab_tests").map(x=>Number(x)).filter(Boolean);
+  const selectedSvc = f.getAll("svc_pick").map(x=>String(x)).filter(Boolean);
+
+  if (selectedLab.length && !doctorAccId) {
+    alert("Вы выбрали анализы. Назначьте врача, чтобы результаты пришли врачу.");
+    return;
+  }
+
+  const doctorAcc = doctorAccId ? getAccounts().find(a=>a.id===doctorAccId) : null;
+  const doctorName = doctorAcc ? doctorAcc.name : null;
+  const visitPrice = doctorAcc ? doctorPriceFor(doctorAcc, activeClinicId) : 0;
+
+  const p = {
+    id: Date.now(),
+    name, dob, phone, passport,
+    status: doctorAccId ? "QUEUED" : "WAITING",
+    doctorAccId: doctorAccId,
+    doctor: doctorName
+  };
+  currentPatients.push(p);
+  savePatients(activeClinicId, currentPatients);
+
+  // create paid visit order if doctor assigned (per-doctor price)
+  if (doctorAccId) ensureVisitOrder(p.id, p.name, doctorAccId, doctorName, visitPrice);
+
+  // create lab orders + lab service orders (paid separately)
+  if (selectedLab.length) {
+    selectedLab.forEach(tid => {
+      const tpl = labTemplates.find(x=>x.id===tid);
+      if (!tpl) return;
+
+      labOrders.push({
+        id: Date.now() + Math.floor(Math.random()*9999),
+        patientId: p.id,
+        patientName: p.name,
+        doctorAccId,
+        doctor: doctorName,
+        templateId: tpl.id,
+        templateName: tpl.name,
+        price: Number(tpl.price||0),
+        status: "ORDERED",
+        createdAt: nowStr(),
+        result: null,
+        filledBy: null,
+        filledAt: null
+      });
+
+      // payment entry for lab
+      serviceOrders.push({
+        id: idGen("so"),
+        patientId: p.id,
+        patientName: p.name,
+        serviceId: `LAB:${tpl.id}`,
+        serviceName: `Анализ: ${tpl.name}`,
+        price: Number(tpl.price||0),
+        status: "UNPAID",
+        createdAt: nowStr(),
+        paidAt: null,
+        closedAt: null
+      });
+    });
+    saveLabOrders(activeClinicId, labOrders);
+    saveServiceOrders(activeClinicId, serviceOrders);
+  }
+
+  // create service orders
+  if (selectedSvc.length) {
+    selectedSvc.forEach(sid => {
+      const svc = services.find(x=>x.id===sid);
+      if (!svc) return;
+      serviceOrders.push({
+        id: idGen("so"),
+        patientId: p.id,
+        patientName: p.name,
+        serviceId: svc.id,
+        serviceName: svc.name,
+        price: Number(svc.price||0),
+        status: "UNPAID",
+        createdAt: nowStr(),
+        paidAt: null,
+        closedAt: null
+      });
+    });
+    saveServiceOrders(activeClinicId, serviceOrders);
+  }
+
+  dataSync(true);
+  navigateTo("queue");
+}
+
+/* ============================================================================
+   13) QUEUE: assign doctor (REGISTRAR + ADMIN)
+============================================================================ */
+function renderQueueTable(el) {
+  if (!requireClinicSelected()) return;
+
+  const waiting = currentPatients.filter(p => p.status === "WAITING");
+  const queued = currentPatients.filter(p => p.status === "QUEUED");
+
+  const docs = clinicDoctors(activeClinicId);
+
+  const waitingRows = waiting.map(p => `
+    <tr class="border-b border-slate-50">
+      <td class="p-4 font-bold text-slate-700">${p.name}</td>
+      <td class="p-4 text-xs text-slate-400 font-bold">${p.dob}</td>
+      <td class="p-4">
+        <select onchange="assignToDoc(${p.id}, this.value)"
+                class="bg-slate-50 text-[10px] font-black p-2 rounded-lg border-none outline-none uppercase tracking-tighter">
+          <option value="">Назначить врача...</option>
+          ${docs.map(d=>{
+            const price = doctorPriceFor(d, activeClinicId);
+            return `<option value="${d.id}">${d.name} — ${money(price)} сум</option>`;
+          }).join("")}
+        </select>
+      </td>
+    </tr>
+  `).join("");
+
+  const queuedRows = queued.map(p => `
+    <tr class="border-b border-slate-50">
+      <td class="p-4 font-bold text-slate-700">${p.name}</td>
+      <td class="p-4 text-xs text-slate-400 font-bold">${p.doctor || "-"}</td>
+      <td class="p-4 text-right text-[10px] font-black uppercase text-emerald-600">В очереди</td>
+    </tr>
+  `).join("");
+
+  el.innerHTML = `
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="glass-card overflow-hidden">
+        <div class="p-4 bg-slate-50 font-black text-[10px] text-slate-400 uppercase">Ожидают назначения (${waiting.length})</div>
+        <table class="w-full text-left text-sm">
+          <tbody>${waitingRows || `<tr><td colspan="3" class="p-10 text-center opacity-40 italic font-bold">Нет пациентов</td></tr>`}</tbody>
+        </table>
+      </div>
+
+      <div class="glass-card overflow-hidden">
+        <div class="p-4 bg-slate-50 font-black text-[10px] text-slate-400 uppercase">Назначенные (${queued.length})</div>
+        <table class="w-full text-left text-sm">
+          <tbody>${queuedRows || `<tr><td colspan="3" class="p-10 text-center opacity-40 italic font-bold">Пока пусто</td></tr>`}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function assignToDoc(pid, doctorAccId) {
+  if (!doctorAccId) return;
+  const p = currentPatients.find(x => x.id === pid);
+  if (!p) return;
+
+  const doc = getAccounts().find(a=>a.id===doctorAccId);
+  if (!doc) return alert("Врач не найден.");
+
+  p.status = "QUEUED";
+  p.doctorAccId = doctorAccId;
+  p.doctor = doc.name;
+
+  savePatients(activeClinicId, currentPatients);
+
+  const price = doctorPriceFor(doc, activeClinicId);
+  ensureVisitOrder(p.id, p.name, doctorAccId, doc.name, price);
+
+  dataSync(true);
+  navigateTo("queue");
+}
+
+function ensureVisitOrder(patientId, patientName, doctorAccId, doctorName, price) {
+  const exists = serviceOrders.some(o => o.patientId === patientId && o.serviceId === "VISIT" && o.doctorAccId === doctorAccId);
+  if (exists) return;
+
+  serviceOrders.push({
+    id: idGen("so"),
+    patientId,
+    patientName,
+    doctorAccId,
+    doctor: doctorName,
+    serviceId: "VISIT",
+    serviceName: "Прием врача",
+    price: Number(price||0),
+    status: "UNPAID",
+    createdAt: nowStr(),
+    paidAt: null,
+    closedAt: null
+  });
+  saveServiceOrders(activeClinicId, serviceOrders);
+}
+
+/* ============================================================================
+   14) SERVICE ORDERS (REGISTRAR + ADMIN)
+============================================================================ */
+function renderServiceOrders(el) {
+  if (!requireClinicSelected()) return;
+
+  const statusBadge = (st) => {
+    if (st === "UNPAID") return `<span class="bg-amber-50 text-amber-700 text-[9px] font-black px-2 py-1 rounded uppercase">UNPAID</span>`;
+    if (st === "PAID") return `<span class="bg-emerald-50 text-emerald-700 text-[9px] font-black px-2 py-1 rounded uppercase">PAID</span>`;
+    if (st === "DONE") return `<span class="bg-blue-50 text-blue-700 text-[9px] font-black px-2 py-1 rounded uppercase">DONE</span>`;
+    return `<span class="bg-slate-50 text-slate-600 text-[9px] font-black px-2 py-1 rounded uppercase">${st}</span>`;
+  };
+
+  const rows = serviceOrders.slice().reverse().map(o => `
+    <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+      <td class="p-4 font-bold text-slate-700">${o.patientName}</td>
+      <td class="p-4 text-xs font-black text-slate-700">${o.serviceName}</td>
+      <td class="p-4 text-right font-black">${money(o.price)} сум</td>
+      <td class="p-4">${statusBadge(o.status)}</td>
+      <td class="p-4 text-right">
+        ${o.status==="UNPAID" ? `<button onclick="markServicePaid('${o.id}')" class="bg-emerald-600 text-white px-3 py-2 rounded-xl text-[10px] font-black uppercase">Оплачено</button>` : ""}
+        ${o.status!=="DONE" ? `<button onclick="markServiceDone('${o.id}')" class="bg-slate-900 text-white px-3 py-2 rounded-xl text-[10px] font-black uppercase ml-2">Закрыть</button>` : ""}
+      </td>
+    </tr>
+  `).join("");
+
+  el.innerHTML = `
+    <div class="glass-card overflow-hidden">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-slate-50 font-black text-[10px] text-slate-400 uppercase">
+          <tr><th class="p-4">Пациент</th><th class="p-4">Услуга</th><th class="p-4 text-right">Сумма</th><th class="p-4">Статус</th><th class="p-4 text-right">Действие</th></tr>
+        </thead>
+        <tbody>${rows || `<tr><td colspan="5" class="p-10 text-center opacity-40 font-bold italic">Нет оплат</td></tr>`}</tbody>
+      </table>
+    </div>
+    <div class="mt-4 text-xs text-slate-400 font-bold">
+      Анализы тоже добавляются как платные позиции (Анализ: ...).
+    </div>
+  `;
+}
+
+function markServicePaid(oid) {
+  const o = serviceOrders.find(x=>x.id===oid);
+  if (!o) return;
+  o.status = "PAID";
+  o.paidAt = nowStr();
+  saveServiceOrders(activeClinicId, serviceOrders);
+  dataSync(true);
+  navigateTo("reg_services");
+}
+
+function markServiceDone(oid) {
+  const o = serviceOrders.find(x=>x.id===oid);
+  if (!o) return;
+  o.status = "DONE";
+  o.closedAt = nowStr();
+  saveServiceOrders(activeClinicId, serviceOrders);
+  dataSync(true);
+  navigateTo("reg_services");
+}
+
+/* ============================================================================
+   15) DOCTOR: QUEUE -> FULLSCREEN WHITE EXAM (bugfix) -> ARCHIVE
+============================================================================ */
+function renderDoctorWorkplace(el) {
+  if (!requireClinicSelected()) return;
+  if (activeRole !== "DOCTOR") { el.innerHTML = `<div class="glass-card p-10 text-center font-black">Доступ запрещен</div>`; return; }
+
+  const myWork = currentPatients.filter(p => p.status === "QUEUED" && p.doctorAccId === activeAccount.id);
+  const cards = myWork.map(p => `
+    <div class="glass-card p-6 flex justify-between items-center mb-4 border-l-4 border-l-blue-600 animate-fade">
+      <div>
+        <h5 class="text-lg font-black text-slate-800">${p.name}</h5>
+        <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">${p.dob} • ${p.passport || "ПАСПОРТ НЕ ПРЕДОСТАВЛЕН"}</p>
+      </div>
+      <button onclick="openDoctorExam(${p.id})"
+              class="bg-slate-900 text-white px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all">
+        Открыть прием
+      </button>
+    </div>
+  `).join("");
+
+  el.innerHTML = cards || `<div class="p-20 text-center opacity-30 text-2xl font-black uppercase italic">Список пациентов пуст</div>`;
+}
+
+function openDoctorExam(pid) {
+  activeExamPatientId = pid;
+  navigateTo("dr_exam");
+}
+
+function renderDoctorExamScreen() {
+  if (!requireClinicSelected()) return;
+  if (activeRole !== "DOCTOR") return;
+
+  setFullscreen(true);
+
+  const vp = document.getElementById("view-port");
+  const p = currentPatients.find(x=>x.id===activeExamPatientId);
+  if (!p) {
+    vp.innerHTML = `<div class="p-10 text-center">
+      <div class="text-2xl font-black">Пациент не найден</div>
+      <button onclick="setFullscreen(false); navigateTo('dr_queue')" class="mt-6 bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase">Назад</button>
+    </div>`;
+    return;
+  }
+
+  // payment status for visit
+  const visitOrder = serviceOrders.find(o => o.patientId===p.id && o.serviceId==="VISIT" && o.doctorAccId===activeAccount.id);
+  const payStatus = visitOrder?.status || "UNPAID";
+
+  const tplOpts = examTemplates.map(t=>`<option value="${t.id}">${t.name}</option>`).join("");
+
+  // BUGFIX: WHITE UI, not black
+  vp.innerHTML = `
+    <div class="w-full h-screen bg-slate-50 flex flex-col">
+      <div class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <button onclick="setFullscreen(false); navigateTo('dr_queue')"
+                  class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl font-black text-[10px] uppercase">
+            <i class="fas fa-arrow-left mr-2"></i> Назад
+          </button>
+          <div>
+            <div class="text-lg font-black tracking-tight text-slate-900">${p.name}</div>
+            <div class="text-[10px] font-black uppercase text-slate-500 tracking-widest">${p.dob} • ${p.passport || "-"}</div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <div class="px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-[10px] font-black uppercase tracking-widest">
+            Прием: <span class="${payStatus==='PAID' || payStatus==='DONE' ? 'text-emerald-600' : 'text-amber-600'}">${payStatus}</span>
+            · Цена: <span class="text-slate-900">${money(doctorPriceFor(activeAccount, activeClinicId))} сум</span>
+          </div>
+          <button onclick="printVisitCertificate(${p.id})"
+                  class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-black text-[10px] uppercase">
+            Справка
+          </button>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto">
+        <div class="max-w-6xl mx-auto p-6">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <div class="lg:col-span-2 glass-card p-6">
+              <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div class="text-xs font-black uppercase text-slate-500 tracking-widest">Осмотр</div>
+                <div class="flex gap-2 items-center">
+                  <select id="examTplSelect" class="bg-white border border-slate-200 rounded-xl p-3 text-xs font-black">
+                    <option value="">(Мой шаблон)</option>
+                    ${tplOpts}
+                  </select>
+                  <button onclick="applyExamTemplate()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase">
+                    Применить
+                  </button>
+                </div>
+              </div>
+
+              <form id="examForm" onsubmit="closeExamination(event, ${p.id})" class="space-y-4">
+                <div>
+                  <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Жалобы и Анамнез</label>
+                  <textarea id="f_notes" name="notes" required class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 h-28 text-sm outline-none"></textarea>
+                </div>
+
+                <div>
+                  <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Объективный осмотр</label>
+                  <textarea id="f_exam" name="exam" required class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 h-28 text-sm outline-none"></textarea>
+                </div>
+
+                <div>
+                  <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Диагноз (МКБ-10)</label>
+                  <input id="f_diag" name="diag" required placeholder="Пример: J06.9 ОРВИ"
+                         class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-black text-emerald-700 outline-none">
+                </div>
+
+                <div>
+                  <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Назначения и рекомендации</label>
+                  <textarea id="f_recipe" name="recipe" required class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 h-28 text-sm outline-none"></textarea>
+                </div>
+
+                <div class="p-5 bg-slate-50 border border-slate-200 rounded-[2rem]">
+                  <div class="flex items-center justify-between mb-3">
+                    <span class="text-[10px] font-black uppercase text-slate-500">Направление в лабораторию (платно)</span>
+                    <span class="text-[10px] font-black uppercase text-slate-400">выберите</span>
+                  </div>
+                  <div class="space-y-2 max-h-56 overflow-y-auto pr-2">
+                    ${
+                      labTemplates.length
+                        ? labTemplates.map(t => `
+                          <label class="flex items-center gap-3 bg-white border border-slate-200 rounded-xl p-3 cursor-pointer hover:bg-slate-50">
+                            <input type="checkbox" name="lab_tests" value="${t.id}" class="w-4 h-4">
+                            <div class="flex-1">
+                              <div class="font-black text-slate-900 text-sm">${t.name}</div>
+                              <div class="text-[10px] text-slate-400 font-bold uppercase">${money(Number(t.price||0))} сум</div>
+                            </div>
+                          </label>
+                        `).join("")
+                        : `<div class="text-xs font-bold italic opacity-60">Шаблонов анализов нет.</div>`
+                    }
+                  </div>
+                </div>
+
+                <div class="flex flex-wrap gap-3 pt-2">
+                  <button type="button" onclick="saveExamAsTemplate()" class="bg-slate-900 hover:bg-slate-800 text-white px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest">
+                    Сохранить как шаблон
+                  </button>
+                  <button class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em]">
+                    Завершить прием
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div class="glass-card p-6">
+              <div class="text-xs font-black uppercase text-slate-500 tracking-widest mb-4">Быстрые действия</div>
+
+              <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                <div class="text-[10px] font-black uppercase text-slate-500">Оплата приема</div>
+                <div class="mt-2 text-sm font-black">
+                  Статус: <span class="${payStatus==='PAID'||payStatus==='DONE'?'text-emerald-600':'text-amber-600'}">${payStatus}</span>
+                </div>
+                <div class="mt-2 text-xs text-slate-400 font-bold">
+                  Оплату ставит регистратура во вкладке “Оплата/Услуги”.
+                </div>
+              </div>
+
+              <div class="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                <div class="text-[10px] font-black uppercase text-slate-500 mb-2">Анализы по пациенту</div>
+                <div class="space-y-2 text-sm">
+                  ${
+                    labOrders
+                      .filter(o => o.patientId===p.id)
+                      .slice().reverse().slice(0,8)
+                      .map(o => `<div class="flex justify-between"><span class="font-bold text-slate-800">${o.templateName}</span><span class="${o.status==='DONE'?'text-emerald-600':'text-amber-600'} text-[10px] font-black uppercase">${o.status}</span></div>`)
+                      .join("")
+                    || `<div class="text-xs italic opacity-60">Нет</div>`
+                  }
+                </div>
+              </div>
+
+              <button onclick="setFullscreen(false); navigateTo('dr_labs')"
+                      class="mt-6 w-full bg-slate-900 hover:bg-slate-800 text-white px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest">
+                Открыть результаты анализов
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function applyExamTemplate() {
+  const tid = document.getElementById("examTplSelect")?.value;
+  if (!tid) return;
+  const t = examTemplates.find(x=>x.id===tid);
+  if (!t) return;
+  document.getElementById("f_notes").value = t.notes || "";
+  document.getElementById("f_exam").value = t.exam || "";
+  document.getElementById("f_diag").value = t.diag || "";
+  document.getElementById("f_recipe").value = t.recipe || "";
+}
+
+function saveExamAsTemplate() {
+  const notes = (document.getElementById("f_notes").value||"").trim();
+  const exam = (document.getElementById("f_exam").value||"").trim();
+  const diag = (document.getElementById("f_diag").value||"").trim();
+  const recipe = (document.getElementById("f_recipe").value||"").trim();
+
+  const name = prompt("Название шаблона осмотра:", "Новый шаблон");
+  if (!name) return;
+
+  const arr = getDoctorExamTemplates(activeClinicId, activeAccount.id);
+  arr.push({ id: idGen("et"), name: name.trim(), notes, exam, diag, recipe });
+  saveDoctorExamTemplates(activeClinicId, activeAccount.id, arr);
+  examTemplates = arr;
+  alert("Шаблон сохранен (только для этого врача).");
+}
+
+function closeExamination(e, pid) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const p = currentPatients.find(x=>x.id===pid);
+  if (!p) return;
+
+  // lab orders created if selected + paid entries
+  const selectedLab = f.getAll("lab_tests").map(x=>Number(x)).filter(Boolean);
+  if (selectedLab.length) {
+    selectedLab.forEach(tid => {
+      const tpl = labTemplates.find(x=>x.id===tid);
+      if (!tpl) return;
+
+      labOrders.push({
+        id: Date.now() + Math.floor(Math.random()*9999),
+        patientId: p.id,
+        patientName: p.name,
+        doctorAccId: activeAccount.id,
+        doctor: activeAccount.name,
+        templateId: tpl.id,
+        templateName: tpl.name,
+        price: Number(tpl.price||0),
+        status: "ORDERED",
+        createdAt: nowStr(),
+        result: null,
+        filledBy: null,
+        filledAt: null
+      });
+
+      serviceOrders.push({
+        id: idGen("so"),
+        patientId: p.id,
+        patientName: p.name,
+        serviceId: `LAB:${tpl.id}`,
+        serviceName: `Анализ: ${tpl.name}`,
+        price: Number(tpl.price||0),
+        status: "UNPAID",
+        createdAt: nowStr(),
+        paidAt: null,
+        closedAt: null
+      });
+    });
+    saveLabOrders(activeClinicId, labOrders);
+    saveServiceOrders(activeClinicId, serviceOrders);
+  }
+
+  // save exam
+  p.status = "COMPLETED";
+  p.examData = {
+    notes: f.get("notes"),
+    physical: f.get("exam"),
+    diag: f.get("diag"),
+    recipe: f.get("recipe"),
+    time: nowStr()
+  };
+
+  // Save a visit-certificate record (instead of sick leave)
+  p.certificate = {
+    id: idGen("cert"),
+    issuedAt: nowStr(),
+    doctor: activeAccount.name
+  };
+
+  savePatients(activeClinicId, currentPatients);
+
+  // Optionally close VISIT service order as DONE when exam completed (if already paid)
+  const visitOrder = serviceOrders.find(o => o.patientId===p.id && o.serviceId==="VISIT" && o.doctorAccId===activeAccount.id);
+  if (visitOrder && (visitOrder.status==="PAID")) {
+    visitOrder.status = "DONE";
+    visitOrder.closedAt = nowStr();
+    saveServiceOrders(activeClinicId, serviceOrders);
+  }
+
+  dataSync(true);
+  setFullscreen(false);
+  navigateTo("dr_archive");
+}
+
+/* ============================================================================
+   16) CERTIFICATE PRINT (A4) - replaces sick leave
+============================================================================ */
+function printVisitCertificate(pid) {
+  const p = currentPatients.find(x=>x.id===pid);
+  if (!p) return;
+
+  const win = window.open("", "", "width=900,height=900");
+  const today = new Date().toLocaleDateString("ru-RU");
+  const time = new Date().toLocaleTimeString("ru-RU");
+
+  const html = `
+    <html>
+    <head>
+      <title>MED48 | СПРАВКА</title>
+      <style>
+        @page { size: A4; margin: 12mm; }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; font-family: 'Times New Roman', serif; color: #000; }
+        .doc {
+          width: 186mm;
+          min-height: 273mm;
+          border: 2px solid #000;
+          padding: 10mm;
+          line-height: 1.35;
+        }
+        .header { text-align:center; border-bottom: 2px solid #000; padding-bottom: 6mm; margin-bottom: 6mm; }
+        h1 { font-size: 16pt; margin: 0; text-transform: uppercase; font-weight: 900; }
+        h2 { font-size: 11pt; margin: 2mm 0 0; font-weight: 700; }
+        .field { margin: 0 0 4mm 0; font-size: 12pt; }
+        .stampRow { display:flex; justify-content: space-between; align-items:flex-end; margin-top: 14mm; }
+        .stamp { width: 42mm; height: 42mm; border: 1px dashed #666; border-radius: 50%; display:flex; align-items:center; justify-content:center; font-size: 8pt; color:#555; }
+        .sign { text-align:right; font-size: 12pt; }
+        .no-print { margin-top: 10mm; text-align:center; }
+        @media print { .no-print { display:none; } }
+      </style>
+    </head>
+    <body>
+      <div class="doc">
+        <div class="header">
+          <h1>СПРАВКА</h1>
+          <h2>${(activeClinicName||"").toUpperCase()}</h2>
+          <div style="margin-top:4mm; font-size: 11pt;"><b>Дата:</b> ${today} &nbsp;&nbsp; <b>Время:</b> ${time}</div>
+        </div>
+
+        <div class="field"><b>Пациент:</b> ${p.name}</div>
+        <div class="field"><b>Дата рождения:</b> ${p.dob || "-"}</div>
+        <div class="field"><b>Паспорт:</b> ${p.passport || "-"}</div>
+
+        <div class="field" style="margin-top:8mm;">
+          Настоящим подтверждается, что пациент <b>${p.name}</b> действительно обращался(лась) в данное медицинское учреждение.
+        </div>
+
+        <div class="field" style="margin-top:6mm;">
+          <b>Врач:</b> ${p.doctor || activeAccount?.name || "-"}
+        </div>
+
+        <div class="stampRow">
+          <div class="stamp">М.П. (печать)</div>
+          <div class="sign">
+            Подпись врача: ___________________<br/>
+            <span style="font-size:11pt;"><b>${p.doctor || activeAccount?.name || ""}</b></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="no-print">
+        <button onclick="window.print()" style="padding: 12px 40px; background: #000; color: #fff; font-weight: bold; border-radius: 10px; cursor: pointer; border: none;">
+          ПЕЧАТЬ
+        </button>
+      </div>
+    </body>
+    </html>
+  `;
+  win.document.write(html);
+  win.document.close();
+}
+
+/* ============================================================================
+   17) DOCTOR ARCHIVE (with certificate)
+============================================================================ */
+function renderDoctorHistory(el) {
+  if (!requireClinicSelected()) return;
+  if (activeRole !== "DOCTOR") { el.innerHTML = `<div class="glass-card p-10 text-center font-black">Доступ запрещен</div>`; return; }
+
+  const archive = currentPatients.filter(p => p.status === "COMPLETED" && p.doctorAccId === activeAccount.id);
+  const rows = archive.slice().reverse().map(p => `
+    <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer" onclick="viewPatDetails(${p.id})">
+      <td class="p-4 font-bold text-slate-700">${p.name}</td>
+      <td class="p-4 text-[10px] font-black text-blue-600 uppercase">${p.examData?.diag || "-"}</td>
+      <td class="p-4 text-[10px] text-slate-400 font-bold">${p.examData?.time || "-"}</td>
+      <td class="p-4 text-right">
+        ${p.certificate ? '<span class="bg-emerald-50 text-emerald-700 text-[9px] font-black px-2 py-1 rounded uppercase mr-2">СПРАВКА</span>' : ''}
+        <i class="fas fa-chevron-right text-slate-200"></i>
+      </td>
+    </tr>
+  `).join("");
+
+  el.innerHTML = `
+    <div class="glass-card overflow-hidden">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-slate-50 font-black text-[10px] text-slate-400 uppercase">
+          <tr><th class="p-4">Пациент</th><th class="p-4">Диагноз</th><th class="p-4">Дата</th><th class="p-4 text-right"></th></tr>
+        </thead>
+        <tbody>${rows || `<tr><td colspan="4" class="p-10 text-center opacity-40">Архив пуст</td></tr>`}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function viewPatDetails(pid) {
+  const p = currentPatients.find(x=>x.id===pid);
+  if (!p) return;
+
+  const mo = document.getElementById("modal-wrapper");
+  mo.classList.remove("hidden"); mo.classList.add("flex");
+  document.getElementById("modal-body").innerHTML = `
+    <div class="flex justify-between items-start mb-6 border-b pb-4">
+      <div>
+        <h2 class="text-2xl font-black text-slate-800">${p.name}</h2>
+        <p class="text-[10px] font-bold text-blue-500 uppercase mt-1 tracking-widest">${p.passport || '-'} • ${p.dob}</p>
+      </div>
+      <button onclick="closeModal()" class="text-slate-300 hover:text-slate-500 transition-colors"><i class="fas fa-times text-xl"></i></button>
+    </div>
+
+    <div class="space-y-4 text-sm text-slate-700">
+      <div class="p-4 bg-slate-50 rounded-xl border border-slate-100"><b>Анамнез:</b><p class="mt-1">${p.examData?.notes || ""}</p></div>
+      <div class="p-4 bg-slate-50 rounded-xl border border-slate-100"><b>Объективный осмотр:</b><p class="mt-1">${p.examData?.physical || ""}</p></div>
+      <div class="p-4 bg-blue-50 text-blue-900 rounded-xl border border-blue-100"><b>Диагноз:</b> <b>${p.examData?.diag || ""}</b></div>
+      <div class="p-4 bg-slate-50 rounded-xl border border-slate-100"><b>Назначения:</b><div class="mt-1 whitespace-pre-line">${p.examData?.recipe || ""}</div></div>
+
+      <div class="p-6 bg-emerald-50 text-emerald-700 rounded-[2rem] border border-emerald-100 flex items-center justify-between">
+        <div>
+          <p class="text-[10px] font-black uppercase">Справка о посещении</p>
+          <p class="font-bold">${p.certificate?.issuedAt || p.examData?.time || "-"}</p>
+        </div>
+        <button onclick="printVisitCertificate(${p.id})" class="bg-emerald-600 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase">Печать</button>
+      </div>
+    </div>
+
+    <button onclick="closeModal()" class="w-full mt-8 p-4 bg-slate-900 text-white font-black rounded-2xl text-xs uppercase tracking-widest">Закрыть</button>
+  `;
+}
+
+/* ============================================================================
+   18) LAB QUEUE + RESULTS TO DOCTOR (same logic, now includes price)
+============================================================================ */
+function renderLabQueue(el) {
+  if (!requireClinicSelected()) return;
+  const allow = ["LAB","SUPERADMIN"].includes(activeRole);
+  if (!allow) { el.innerHTML = `<div class="glass-card p-10 text-center font-black">Доступ запрещен</div>`; return; }
+
+  const pending = labOrders.filter(o=>o.status==="ORDERED");
+  const done = labOrders.filter(o=>o.status==="DONE");
+
+  const card = (o) => `
+    <div class="glass-card p-6 mb-4 border-l-4 border-blue-600">
+      <div class="flex justify-between items-start gap-4">
+        <div>
+          <div class="text-lg font-black text-slate-800">${o.templateName}</div>
+          <div class="text-[10px] font-black text-slate-400 uppercase mt-1">
+            Пациент: ${o.patientName} • Врач: ${o.doctor} • Цена: ${money(Number(o.price||0))} сум • ${o.createdAt}
+          </div>
+        </div>
+        <button onclick="openFillLabResult('${o.id}')" class="bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest">
+          Заполнить
+        </button>
+      </div>
+    </div>
+  `;
+
+  el.innerHTML = `
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div>
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Ожидают выполнения (${pending.length})</div>
+        ${pending.map(card).join("") || `<div class="p-10 text-center opacity-40 font-black italic">Очередь пуста</div>`}
+      </div>
+      <div>
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Выполненные (${done.length})</div>
+        ${done.slice().reverse().slice(0, 12).map(o => `
+          <div class="glass-card p-5 mb-3 border-l-4 border-emerald-600">
+            <div class="font-black">${o.templateName}</div>
+            <div class="text-[10px] font-black text-slate-400 uppercase mt-1">${o.patientName} • ${o.filledAt}</div>
+          </div>
+        `).join("") || `<div class="p-10 text-center opacity-40 font-black italic">Пока нет выполненных</div>`}
+      </div>
+    </div>
+  `;
+}
+
+function openFillLabResult(orderId) {
+  const o = labOrders.find(x=>String(x.id)===String(orderId));
+  if (!o) return alert("Заказ не найден.");
+  const tpl = labTemplates.find(t=>t.id===o.templateId);
+
+  const inputs = (tpl?.fields || []).map(f => `
+    <div class="grid grid-cols-12 gap-3 items-center">
+      <div class="col-span-5">
+        <div class="font-black text-slate-800 text-sm">${f.label || "(без названия)"}</div>
+        <div class="text-[10px] text-slate-400 font-bold uppercase">${f.ref || ""}</div>
+      </div>
+      <input class="col-span-4 bg-slate-50 p-3 rounded-xl border-none" name="res_${f.key}" placeholder="Значение" required>
+      <div class="col-span-3 text-xs font-mono text-slate-400">${f.unit || ""}</div>
+    </div>
+  `).join("") || `<div class="italic opacity-50">В шаблоне нет полей.</div>`;
+
+  const mo = document.getElementById("modal-wrapper");
+  mo.classList.remove("hidden"); mo.classList.add("flex");
+  document.getElementById("modal-body").innerHTML = `
+    <h2 class="text-2xl font-black mb-2">Результат анализа</h2>
+    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">
+      ${o.templateName} • Пациент: ${o.patientName} • Врач: ${o.doctor}
+    </div>
+
+    <form onsubmit="submitLabResult(event,'${o.id}')" class="space-y-4">
+      <div class="space-y-3">${inputs}</div>
+
+      <div>
+        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Комментарий лаборанта</label>
+        <textarea name="lab_comment" class="w-full bg-slate-50 p-4 rounded-xl border-none h-24" placeholder="При необходимости..."></textarea>
+      </div>
+
+      <div class="flex gap-4 pt-2">
+        <button type="button" onclick="closeModal()" class="flex-1 py-4 font-bold text-slate-400 uppercase text-[10px] tracking-widest">Отмена</button>
+        <button class="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em]">Сохранить</button>
+      </div>
+    </form>
+  `;
+}
+
+function submitLabResult(e, orderId) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+
+  const o = labOrders.find(x=>String(x.id)===String(orderId));
+  if (!o) return;
+  const tpl = labTemplates.find(t=>t.id===o.templateId);
+  if (!tpl) return alert("Шаблон не найден.");
+
+  const values = {};
+  tpl.fields.forEach(ff => { values[ff.key] = f.get("res_" + ff.key); });
+
+  o.status = "DONE";
+  o.result = { values, comment: f.get("lab_comment") || "", templateFields: tpl.fields };
+  o.filledBy = sessionUser.name;
+  o.filledAt = nowStr();
+
+  saveLabOrders(activeClinicId, labOrders);
+  closeModal();
+  dataSync(true);
+  navigateTo("lab_queue");
+}
+
+/* ============================================================================
+   19) DOCTOR: RESULTS INBOX
+============================================================================ */
+function renderDoctorLabInbox(el) {
+  if (!requireClinicSelected()) return;
+  if (activeRole !== "DOCTOR") { el.innerHTML = `<div class="glass-card p-10 text-center font-black">Доступ запрещен</div>`; return; }
+
+  const my = labOrders.filter(o => o.doctorAccId === activeAccount.id).slice().reverse();
+  const rows = my.map(o => `
+    <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer" onclick="openDoctorLabView('${o.id}')">
+      <td class="p-4 font-bold text-slate-700">${o.patientName}</td>
+      <td class="p-4 text-xs font-black text-slate-700">${o.templateName}</td>
+      <td class="p-4 text-[10px] font-black uppercase ${o.status==='DONE' ? 'text-emerald-600' : 'text-amber-600'}">
+        ${o.status==='DONE' ? 'ГОТОВО' : 'ОЖИДАЕТСЯ'}
+      </td>
+      <td class="p-4 text-[10px] text-slate-400 font-bold">${o.status==='DONE' ? o.filledAt : o.createdAt}</td>
+      <td class="p-4 text-right"><i class="fas fa-chevron-right text-slate-200"></i></td>
+    </tr>
+  `).join("");
+
+  el.innerHTML = `
+    <div class="glass-card overflow-hidden">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-slate-50 font-black text-[10px] text-slate-400 uppercase">
+          <tr><th class="p-4">Пациент</th><th class="p-4">Анализ</th><th class="p-4">Статус</th><th class="p-4">Дата</th><th class="p-4"></th></tr>
+        </thead>
+        <tbody>${rows || `<tr><td colspan="5" class="p-10 text-center opacity-40">Нет направлений/результатов</td></tr>`}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function openDoctorLabView(orderId) {
+  const o = labOrders.find(x=>String(x.id)===String(orderId));
+  if (!o) return;
+
+  const mo = document.getElementById("modal-wrapper");
+  mo.classList.remove("hidden"); mo.classList.add("flex");
+
+  const content = (o.status !== "DONE")
+    ? `<div class="p-6 bg-amber-50 border border-amber-100 rounded-2xl text-amber-700 font-bold">
+         Результат ещё не готов. Направление: ${o.createdAt}
+       </div>`
+    : `
+      <div class="space-y-2">
+        ${o.result.templateFields.map(ff => `
+          <div class="flex justify-between bg-slate-50 border rounded-xl p-3">
+            <div><b>${ff.label}</b> <span class="text-slate-400">${ff.unit || ''}</span></div>
+            <div class="font-mono font-bold text-slate-800">${o.result.values[ff.key]}</div>
+          </div>
+        `).join("")}
+      </div>
+      ${o.result.comment ? `<div class="p-4 bg-blue-50 border border-blue-100 rounded-2xl mt-4"><b>Комментарий лаборанта:</b><div class="mt-1 whitespace-pre-line">${o.result.comment}</div></div>` : ''}
+      <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-4">
+        Выполнил: ${o.filledBy} • ${o.filledAt}
+      </div>
+    `;
+
+  document.getElementById("modal-body").innerHTML = `
+    <div class="flex justify-between items-start mb-6 border-b pb-4">
+      <div>
+        <h2 class="text-2xl font-black text-slate-800">${o.templateName}</h2>
+        <p class="text-[10px] font-bold text-blue-500 uppercase mt-1 tracking-widest">${o.patientName}</p>
+      </div>
+      <button onclick="closeModal()" class="text-slate-300 hover:text-slate-500 transition-colors"><i class="fas fa-times text-xl"></i></button>
+    </div>
+    ${content}
+    <button onclick="closeModal()" class="w-full mt-8 p-4 bg-slate-900 text-white font-black rounded-2xl text-xs uppercase tracking-widest">Закрыть</button>
+  `;
+}
+
+/* ============================================================================
+   20) EXAM TEMPLATES: per-doctor + admin/director can manage by selecting doctor
+============================================================================ */
+function renderExamTemplates(el) {
+  if (!requireClinicSelected()) return;
+
+  const allow = ["DOCTOR","DIRECTOR","SUPERADMIN"].includes(activeRole);
+  if (!allow) { el.innerHTML = `<div class="glass-card p-10 text-center font-black">Доступ запрещен</div>`; return; }
+
+  // choose doctor
+  let targetDoctorId = null;
+  if (activeRole === "DOCTOR") targetDoctorId = activeAccount.id;
+
+  const doctors = clinicDoctors(activeClinicId);
+
+  el.innerHTML = `
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+      <div>
+        <p class="text-sm text-slate-400 font-bold">
+          Шаблоны осмотров <span class="text-slate-800">персональные для каждого врача</span>.
+          ${activeRole==="DOCTOR" ? "Вы видите только свои." : "Выберите врача для управления."}
+        </p>
+      </div>
+
+      <div class="flex gap-2 items-center">
+        ${activeRole!=="DOCTOR" ? `
+          <select id="tplDoctorPick" class="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold" onchange="renderExamTemplates(document.getElementById('view-port'))">
+            ${doctors.map(d=>`<option value="${d.id}">${d.name}</option>`).join("")}
+          </select>
+        ` : ``}
+        <button onclick="openNewExamTemplate()" class="bg-slate-900 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest">+ Новый шаблон</button>
+      </div>
+    </div>
+    <div id="examTplList"></div>
+  `;
+
+  if (activeRole !== "DOCTOR") {
+    targetDoctorId = document.getElementById("tplDoctorPick")?.value || doctors[0]?.id || null;
+  }
+  if (!targetDoctorId) {
+    document.getElementById("examTplList").innerHTML = `<div class="p-16 text-center opacity-40 font-black italic">Нет врачей</div>`;
+    return;
+  }
+
+  const tpls = getDoctorExamTemplates(activeClinicId, targetDoctorId);
+
+  const cards = tpls.slice().reverse().map(t => `
+    <div class="glass-card p-6 mb-4">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <div class="text-lg font-black text-slate-800">${t.name}</div>
+          <div class="text-[10px] font-black text-slate-400 uppercase mt-1">Шаблон осмотра</div>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="editExamTemplate('${t.id}','${targetDoctorId}')" class="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl font-black text-[10px] uppercase">Редактировать</button>
+          <button onclick="deleteExamTemplate('${t.id}','${targetDoctorId}')" class="bg-red-50 text-red-600 px-4 py-2 rounded-xl font-black text-[10px] uppercase">Удалить</button>
+        </div>
+      </div>
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-700">
+        <div class="p-4 bg-slate-50 rounded-xl border border-slate-100"><b>Анамнез:</b><div class="mt-1 text-xs whitespace-pre-line">${(t.notes||"").slice(0,240)}${(t.notes||"").length>240?"…":""}</div></div>
+        <div class="p-4 bg-slate-50 rounded-xl border border-slate-100"><b>Осмотр:</b><div class="mt-1 text-xs whitespace-pre-line">${(t.exam||"").slice(0,240)}${(t.exam||"").length>240?"…":""}</div></div>
+        <div class="p-4 bg-blue-50 rounded-xl border border-blue-100"><b>Диагноз:</b> <span class="font-black">${t.diag||""}</span></div>
+        <div class="p-4 bg-slate-50 rounded-xl border border-slate-100"><b>Назначения:</b><div class="mt-1 text-xs whitespace-pre-line">${(t.recipe||"").slice(0,240)}${(t.recipe||"").length>240?"…":""}</div></div>
+      </div>
+    </div>
+  `).join("") || `<div class="p-16 text-center opacity-40 font-black italic">Шаблонов пока нет</div>`;
+
+  document.getElementById("examTplList").innerHTML = cards;
+
+  // Update current doctor templates cache if doctor view
+  if (activeRole==="DOCTOR") examTemplates = tpls;
+}
+
+function openNewExamTemplate() {
+  if (!requireClinicSelected()) return;
+
+  let targetDoctorId = (activeRole==="DOCTOR") ? activeAccount.id : (document.getElementById("tplDoctorPick")?.value || clinicDoctors(activeClinicId)[0]?.id);
+  if (!targetDoctorId) return alert("Нет врача.");
+
+  const mo = document.getElementById("modal-wrapper");
+  mo.classList.remove("hidden"); mo.classList.add("flex");
+  document.getElementById("modal-body").innerHTML = `
+    <h2 class="text-2xl font-black mb-6">Новый шаблон осмотра</h2>
+    <form onsubmit="saveNewExamTemplate(event,'${targetDoctorId}')" class="space-y-4">
+      <input name="name" placeholder="Название шаблона" required class="w-full bg-slate-50 p-4 rounded-xl border-none">
+      <textarea name="notes" placeholder="Жалобы и анамнез..." class="w-full bg-slate-50 p-4 rounded-xl border-none h-24"></textarea>
+      <textarea name="exam" placeholder="Объективный осмотр..." class="w-full bg-slate-50 p-4 rounded-xl border-none h-24"></textarea>
+      <input name="diag" placeholder="Диагноз (МКБ-10)" class="w-full bg-slate-50 p-4 rounded-xl border-none">
+      <textarea name="recipe" placeholder="Назначения..." class="w-full bg-slate-50 p-4 rounded-xl border-none h-24"></textarea>
+      <button class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-xs">Сохранить</button>
+      <button type="button" onclick="closeModal()" class="w-full py-3 font-black text-slate-400 uppercase text-xs">Отмена</button>
+    </form>
+  `;
+}
+function saveNewExamTemplate(e, doctorId) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+
+  const arr = getDoctorExamTemplates(activeClinicId, doctorId);
+  arr.push({
+    id: idGen("et"),
+    name: (f.get("name")||"").trim(),
+    notes: f.get("notes")||"",
+    exam: f.get("exam")||"",
+    diag: f.get("diag")||"",
+    recipe: f.get("recipe")||""
+  });
+  saveDoctorExamTemplates(activeClinicId, doctorId, arr);
+  closeModal();
+  dataSync(true);
+  navigateTo("exam_templates");
+}
+function editExamTemplate(tid, doctorId) {
+  const arr = getDoctorExamTemplates(activeClinicId, doctorId);
+  const t = arr.find(x=>x.id===tid);
+  if (!t) return;
+
+  const mo = document.getElementById("modal-wrapper");
+  mo.classList.remove("hidden"); mo.classList.add("flex");
+  document.getElementById("modal-body").innerHTML = `
+    <h2 class="text-2xl font-black mb-6">Редактировать шаблон</h2>
+    <form onsubmit="updateExamTemplate(event,'${tid}','${doctorId}')" class="space-y-4">
+      <input name="name" value="${String(t.name).replace(/"/g,'&quot;')}" required class="w-full bg-slate-50 p-4 rounded-xl border-none">
+      <textarea name="notes" class="w-full bg-slate-50 p-4 rounded-xl border-none h-24">${t.notes||""}</textarea>
+      <textarea name="exam" class="w-full bg-slate-50 p-4 rounded-xl border-none h-24">${t.exam||""}</textarea>
+      <input name="diag" value="${String(t.diag||"").replace(/"/g,'&quot;')}" class="w-full bg-slate-50 p-4 rounded-xl border-none">
+      <textarea name="recipe" class="w-full bg-slate-50 p-4 rounded-xl border-none h-24">${t.recipe||""}</textarea>
+      <button class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-xs">Сохранить</button>
+      <button type="button" onclick="closeModal()" class="w-full py-3 font-black text-slate-400 uppercase text-xs">Отмена</button>
+    </form>
+  `;
+}
+function updateExamTemplate(e, tid, doctorId) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+
+  const arr = getDoctorExamTemplates(activeClinicId, doctorId);
+  const t = arr.find(x=>x.id===tid);
+  if (!t) return;
+
+  t.name = (f.get("name")||"").trim();
+  t.notes = f.get("notes")||"";
+  t.exam = f.get("exam")||"";
+  t.diag = f.get("diag")||"";
+  t.recipe = f.get("recipe")||"";
+
+  saveDoctorExamTemplates(activeClinicId, doctorId, arr);
+  closeModal();
+  dataSync(true);
+  navigateTo("exam_templates");
+}
+function deleteExamTemplate(tid, doctorId) {
+  if (!confirm("Удалить шаблон осмотра?")) return;
+  const arr = getDoctorExamTemplates(activeClinicId, doctorId).filter(x=>x.id!==tid);
+  saveDoctorExamTemplates(activeClinicId, doctorId, arr);
+  dataSync(true);
+  navigateTo("exam_templates");
+}
+
+/* ============================================================================
+   21) TIMER + AUTOLOAD
+============================================================================ */
+setInterval(() => {
+  const t = document.getElementById("live-timer");
+  if (t) t.innerText = new Date().toLocaleTimeString("ru-RU");
+}, 1000);
+
+window.onload = () => {
+  session = lsGet("itmed_session", null);
+  if (session) startApp();
+};
+</script>
+
+</body>
+</html>
